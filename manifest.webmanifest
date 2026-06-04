@@ -1,0 +1,17 @@
+{
+  "name": "Plot — Growing Guide",
+  "short_name": "Plot",
+  "description": "A location-aware growing guide for fruit, veg, herbs and trees — when to sow, what suits your climate, and live progress tracking.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#233329",
+  "theme_color": "#233329",
+  "categories": ["lifestyle", "utilities"],
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
