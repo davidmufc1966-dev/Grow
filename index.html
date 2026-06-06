@@ -6,6 +6,13 @@
   <title>Plot — Growing Guide</title>
   <meta name="description" content="A location-aware growing guide: when to sow, what suits your climate, and live progress tracking for 38 crops." />
   <meta name="theme-color" content="#233329" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" type="image/png" href="./icon-192.png" />
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Plot" />
   <style>
     html, body { margin: 0; padding: 0; background: #233329; -webkit-tap-highlight-color: transparent; }
     #root { min-height: 100vh; min-height: 100dvh; }
@@ -5513,5 +5520,12 @@ function PlotApp() {
 }
 var __r = document.getElementById("root");
 ReactDOM.createRoot(__r).render(React.createElement(PlotApp));</script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("./service-worker.js").catch(function () {});
+      });
+    }
+  </script>
 </body>
 </html>
