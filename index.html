@@ -10308,6 +10308,7 @@ function PlotApp() {
   const [loc, setLoc] = useState(null);
   const [query, setQuery] = useState("");
   const [cropId, setCropId] = useState(null);
+  const [dtab, setDtab] = useState("guide");
   const [filter, setFilter] = useState("all");
   const [cropQuery, setCropQuery] = useState("");
   const [hideUnfit, setHideUnfit] = useState(false);
@@ -10688,6 +10689,7 @@ function PlotApp() {
   const goCrop = (id, from = "list") => {
     setCropId(id);
     setBack(from);
+    setDtab(sownDates[id] ? "journal" : "guide");
     setScreen("detail");
     window.scrollTo(0, 0);
   };
@@ -11446,16 +11448,37 @@ function PlotApp() {
     sownAt: sownDates[crop.id],
     onSet: ts => setSown(crop.id, ts),
     loc: loc
-  })), /*#__PURE__*/React.createElement(SowingCard, {
-    crop: crop
-  }), /*#__PURE__*/React.createElement(PhotoJournal, {
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 4,
+      background: "var(--paper2)",
+      border: "1px solid var(--line2)",
+      borderRadius: 11,
+      padding: 4,
+      marginTop: 16
+    }
+  }, [["guide", "Guide"], ["care", "Care"], ["journal", "Journal"]].map(([k, lab]) => /*#__PURE__*/React.createElement("button", {
+    key: k,
+    onClick: () => setDtab(k),
+    className: "mono",
+    style: {
+      flex: 1,
+      border: "none",
+      borderRadius: 8,
+      padding: "8px 0",
+      fontSize: 11,
+      letterSpacing: ".05em",
+      cursor: "pointer",
+      background: dtab === k ? "var(--ink)" : "transparent",
+      color: dtab === k ? "var(--paper)" : "var(--ink2)"
+    }
+  }, lab.toUpperCase()))), dtab === "journal" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(PhotoJournal, {
     crop: crop,
     sownAt: sownDates[crop.id],
     shots: photos[crop.id] || {},
     onAdd: (st, img) => setPhoto(crop.id, st, img),
     onDelete: st => setPhoto(crop.id, st, null)
-  }), /*#__PURE__*/React.createElement(PickRow, {
-    crop: crop
   }), /*#__PURE__*/React.createElement(HarvestCard, {
     crop: crop,
     sownAt: sownDates[crop.id],
@@ -11466,12 +11489,28 @@ function PlotApp() {
     crop: crop,
     value: notes[crop.id],
     onChange: t => setNote(crop.id, t)
+  }), !sownDates[crop.id] && /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 12.5,
+      color: "var(--muted)",
+      margin: "12px 2px 0",
+      lineHeight: 1.5
+    }
+  }, "The photo journal and harvest log appear here once you've set a sow date above.")), dtab === "care" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(PickRow, {
+    crop: crop
+  }), /*#__PURE__*/React.createElement(CompanionsCard, {
+    crop: crop,
+    onOpen: id => goCrop(id, back)
+  }), /*#__PURE__*/React.createElement(ProblemsCard, {
+    crop: crop
+  })), dtab === "guide" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(SowingCard, {
+    crop: crop
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gridTemplateColumns: "1fr 1fr",
       gap: 11,
-      marginTop: 10
+      marginTop: 12
     }
   }, /*#__PURE__*/React.createElement(WaterSpec, {
     crop: crop
@@ -11481,12 +11520,7 @@ function PlotApp() {
     crop: crop
   }), /*#__PURE__*/React.createElement(TempSpec, {
     crop: crop
-  })), /*#__PURE__*/React.createElement(CompanionsCard, {
-    crop: crop,
-    onOpen: id => goCrop(id, back)
-  }), /*#__PURE__*/React.createElement(ProblemsCard, {
-    crop: crop
-  }), /*#__PURE__*/React.createElement("div", {
+  })), /*#__PURE__*/React.createElement("div", {
     className: "label",
     style: {
       margin: "24px 0 4px"
@@ -11560,7 +11594,7 @@ function PlotApp() {
       margin: 0,
       color: "var(--ink)"
     }
-  }, crop.note)), isSaved(crop.id) ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
+  }, crop.note))), isSaved(crop.id) ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
     className: "btn-primary",
     style: {
       marginTop: 18,
