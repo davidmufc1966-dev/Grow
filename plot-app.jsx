@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import {
   MapPin, Search, Droplets, Sun, Thermometer, Sprout, Compass, Plus, Trash2,
-  CalendarDays, ChevronLeft, ChevronRight, ArrowRight, Check, FlaskConical, X, AlertTriangle, Info, Camera, Snowflake
+  CalendarDays, ChevronLeft, ChevronRight, ArrowRight, Check, FlaskConical, X, AlertTriangle, Info, Camera, Snowflake, NotebookPen, Wheat, Settings, Download, Upload, Repeat, Bug, Moon, Flower, Scissors
 } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
@@ -18,8 +18,18 @@ const CSS = `
   --ink:#1E342A; --ink2:#3D5145; --muted:#7C8377;
   --moss:#4E7A4C; --clay:#BD5736; --ochre:#BE8E2C; --soil:#5A4632;
   --line:rgba(30,52,42,0.14); --line2:rgba(30,52,42,0.30);
+  --t-ochre:#8A6716; --t-danger:#9A3D22; --t-dangerBg:#9A3D22; --t-green:#3C5E3A; --t-frost:#2C5068; --t-frostI:#3E6E8C; --t-teal:#2F6B69;
+  --map-bg:linear-gradient(180deg,#E7E0CC,#DfD6BE); --map-land:#C7D1AE; --map-stroke:#9DAB84;
   font-family:'Hanken Grotesk', ui-sans-serif, system-ui, sans-serif;
   color:var(--ink); line-height:1.45;
+}
+.plot.dark{
+  --paper:#1B241F; --paper2:#222C26; --card:#26312A; --card2:#212B25;
+  --ink:#EAE3D0; --ink2:#C6BFA9; --muted:#8E9588;
+  --moss:#74A872; --clay:#D97D58; --ochre:#D6AC4A; --soil:#C2A98C;
+  --line:rgba(234,227,208,0.13); --line2:rgba(234,227,208,0.28);
+  --t-ochre:#D9B45C; --t-danger:#E2917A; --t-dangerBg:#B14C30; --t-green:#92C28D; --t-frost:#A8CBE0; --t-frostI:#86B5D2; --t-teal:#86C7C4;
+  --map-bg:linear-gradient(180deg,#202B24,#1B241F); --map-land:#3C4D3A; --map-stroke:#566753;
 }
 .fr  { font-family:'Fraunces', Georgia, 'Times New Roman', serif; }
 .mono{ font-family:'Space Mono', ui-monospace, SFMono-Regular, monospace; }
@@ -716,6 +726,351 @@ const CROPS = [
     note:"A handsome tree that hangs on to its glowing orange fruit long after the leaves drop. It likes warm summers and mild winters; many kinds must go soft-ripe before they lose their mouth-puckering bite." },
 ];
 
+/* companion planting: traditional pairings, written once, shown on both crops' pages */
+const COMPANION_GOOD = [
+  ["tomato","basil"],["tomato","chives"],["tomato","carrot"],["tomato","parsley"],["tomato","garlic"],["tomato","borage"],["tomato","asparagus"],["tomato","celery"],
+  ["physalis","basil"],["chilli","basil"],["pepper","basil"],["pepper","onion"],["pepper","oregano"],["okra","pepper"],
+  ["eggplant","basil"],["eggplant","beans"],
+  ["carrot","onion"],["carrot","leek"],["carrot","chives"],["carrot","springonion"],["carrot","rosemary"],["carrot","sage"],["carrot","pea"],["carrot","lettuce"],
+  ["beans","sweetcorn"],["beans","cucumber"],["beans","potato"],["beans","savory"],["beans","celery"],["broadbeans","savory"],["broadbeans","spinach"],
+  ["sweetcorn","pumpkin"],["sweetcorn","butternut"],["sweetcorn","cucumber"],["sweetcorn","melon"],["sweetcorn","zucchini"],
+  ["cucumber","dill"],["cucumber","lettuce"],["cucumber","radish"],["cucumber","pea"],
+  ["pumpkin","borage"],["zucchini","borage"],["melon","borage"],
+  ["lettuce","radish"],["lettuce","chives"],["lettuce","strawberry"],["lettuce","spinach"],["lettuce","rocket"],
+  ["spinach","strawberry"],["spinach","pea"],
+  ["onion","beetroot"],["onion","lettuce"],["onion","chamomile"],["onion","cabbage"],
+  ["garlic","beetroot"],["garlic","lettuce"],["garlic","raspberry"],
+  ["cabbage","dill"],["cabbage","celery"],["cabbage","chamomile"],["cabbage","mint"],["cabbage","rosemary"],["cabbage","thyme"],["cabbage","sage"],["cabbage","potato"],
+  ["broccoli","beetroot"],["broccoli","dill"],["cauliflower","celery"],["brussels","celery"],["kale","beetroot"],
+  ["beetroot","kohlrabi"],
+  ["pea","turnip"],["pea","radish"],
+  ["strawberry","borage"],["strawberry","thyme"],["strawberry","chives"],
+  ["asparagus","parsley"],["asparagus","basil"],
+  ["leek","celery"],["rosemary","sage"],["chives","apple"],["dill","lettuce"],
+];
+const COMPANION_BAD = [
+  ["onion","beans"],["onion","pea"],["onion","broadbeans"],
+  ["garlic","beans"],["garlic","pea"],["garlic","broadbeans"],
+  ["leek","beans"],["leek","pea"],["leek","broadbeans"],
+  ["tomato","potato"],["tomato","sweetcorn"],["tomato","cabbage"],["tomato","kohlrabi"],["tomato","fennel"],["tomato","dill"],
+  ["fennel","beans"],["fennel","pepper"],["fennel","eggplant"],["fennel","cilantro"],["fennel","dill"],
+  ["potato","cucumber"],["potato","pumpkin"],["potato","raspberry"],
+  ["carrot","dill"],["carrot","parsnip"],
+  ["cabbage","strawberry"],["sage","cucumber"],["rosemary","mint"],
+  ["raspberry","blackberry"],
+  ["walnut","tomato"],["walnut","potato"],["walnut","apple"],["walnut","blueberry"],
+];
+function companionsFor(id){
+  const pick=(pairs)=>{
+    const s=[];
+    for(const [a,b] of pairs){ if(a===id) s.push(b); else if(b===id) s.push(a); }
+    return [...new Set(s)].map(x=>CROPS.find(c=>c.id===x)).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name));
+  };
+  return { good: pick(COMPANION_GOOD), bad: pick(COMPANION_BAD) };
+}
+
+/* succession crops: re-sow a short row every N days for a steady supply */
+const SUCCESSION = {
+  radish:10, rocket:14, lettuce:14, spinach:14, cilantro:14, pakchoi:14,
+  dill:21, springonion:21, turnip:21, beetroot:21, carrot:21, pea:21,
+  beans:21, kohlrabi:21, sweetcorn:21, fennel:21,
+};
+function succLabel(d){ return d%7===0 ? "~"+(d/7)+" weeks" : "~"+d+" days"; }
+
+/* common pests & problems: each written once, mapped to the crops it afflicts */
+const PROBLEMS = {
+  slugs:{ name:"Slugs & snails", signs:"Ragged holes in leaves, silvery slime trails, and seedlings that vanish overnight.",
+    fix:"Patrol with a torch on damp evenings, set beer traps, and use copper tape or wool pellets around precious plants. Encourage frogs and birds, and keep loose mulch away from young seedlings." },
+  aphids:{ name:"Aphids (greenfly & blackfly)", signs:"Clusters of tiny green or black insects on shoot tips and leaf undersides; sticky honeydew; curled, distorted growth.",
+    fix:"Squash colonies by hand or blast off with water. Ladybirds and hoverflies clear them naturally, so avoid spraying. On broad beans, pinch out infested tips once pods set." },
+  cabbagewhite:{ name:"Cabbage white caterpillars", signs:"Holes eaten through brassica leaves, green or stripy caterpillars, and clusters of yellow eggs underneath.",
+    fix:"Net with fine mesh before the butterflies arrive in late spring — it's far easier than fighting them after. Check leaf undersides weekly and rub off any eggs you find." },
+  cabbagerootfly:{ name:"Cabbage root fly", signs:"Young brassicas wilt and collapse; white maggots on the roots when you pull a casualty.",
+    fix:"Fit a collar (cardboard or felt disc) snugly around each stem at planting so the fly can't lay at the base, or grow under fine mesh from day one." },
+  fleabeetle:{ name:"Flea beetle", signs:"Leaves peppered with dozens of tiny round holes; small shiny beetles that spring away when disturbed.",
+    fix:"Keep seedlings growing fast with steady water — established plants shrug it off. Mesh covers protect young sowings, and late-summer sowings often escape the worst." },
+  carrotfly:{ name:"Carrot fly", signs:"Rusty-brown tunnels riddling the roots; foliage that reddens and wilts.",
+    fix:"The fly hunts by scent, so sow thinly to avoid thinning, and surround the row with a fine mesh barrier at least 60 cm tall — it flies low. Alliums nearby help mask the smell." },
+  blight:{ name:"Blight", signs:"Brown patches on leaves and stems spreading fast in warm, wet spells; fruit and tubers turn rotten.",
+    fix:"Act quickly: remove infected leaves, water at the base not over the foliage, and give plants airflow. Earth up potatoes well. Bin — don't compost — anything infected." },
+  powderymildew:{ name:"Powdery mildew", signs:"A white, dusty coating spreading over leaves, usually in late summer or after dry spells.",
+    fix:"Drought stress invites it, so water steadily at the roots and mulch. Remove the worst leaves, space plants for airflow, and accept some on mature squash — it rarely kills." },
+  blossomendrot:{ name:"Blossom end rot", signs:"A dark, sunken, leathery patch at the base of the fruit.",
+    fix:"Not a disease — it's a calcium hiccup caused by erratic watering. Water little and often rather than drowning after drought, and mulch to keep moisture even. New fruit will be fine." },
+  splittingfruit:{ name:"Splitting", signs:"Fruit or roots crack open, usually right after heavy rain follows a dry spell.",
+    fix:"Even moisture is the cure: mulch well, water consistently in dry weather, and pick promptly when rain is forecast after drought." },
+  bolting:{ name:"Bolting", signs:"The plant suddenly throws up a flower stalk and turns bitter or tough, long before you've had your fill.",
+    fix:"Heat, drought and long days trigger it. Sow at the cooler ends of the season, keep plants watered, pick often, and choose bolt-resistant varieties for summer sowings." },
+  dampingoff:{ name:"Damping off", signs:"Indoor-sown seedlings keel over at the soil line and wither, often in patches.",
+    fix:"A fungal problem of stale, soggy conditions: use clean pots and fresh compost, sow thinly, water from below sparingly, and give seedlings air and light." },
+  birds:{ name:"Birds & squirrels", signs:"Pigeons strip brassica and pea leaves to skeletons; berries, cobs and nuts vanish as they ripen.",
+    fix:"Netting is the only real answer — taut and well-anchored so nothing gets tangled. Net brassicas from planting, fruit as it colours, and pick promptly once ripe." },
+  mice:{ name:"Mice", signs:"Freshly sown peas, beans or corn dug up and eaten before they ever sprout.",
+    fix:"Start seeds in pots or lengths of guttering somewhere safe, then plant out as sturdy seedlings the mice ignore." },
+  vineweevil:{ name:"Vine weevil", signs:"Neat notches bitten from leaf edges; pot-grown plants suddenly collapse as white C-shaped grubs eat the roots.",
+    fix:"Tip out suspect pots and check the compost for grubs. Biological nematodes, watered on in late summer, control them well in containers." },
+  codlingmoth:{ name:"Codling moth", signs:"Maggoty fruit with a tell-tale tunnel and crumbly droppings near the core.",
+    fix:"Hang pheromone traps from late spring to catch the males, pick up windfalls promptly, and accept that a few maggoty fruit are part of growing apples." },
+  sawfly:{ name:"Gooseberry sawfly", signs:"Leaves stripped to skeletons with startling speed, starting low in the bush's centre; small green caterpillar-like larvae.",
+    fix:"Inspect the bush's heart weekly from mid-spring — catch the first brood and you stop the plague. Pick larvae off by hand; birds will help if the bush is open." },
+  rust:{ name:"Rust", signs:"Bright orange pustules dotting the leaves, usually from midsummer.",
+    fix:"Mostly cosmetic on leeks and chives — remove the worst leaves, space for airflow, and go easy on nitrogen feed. On pear, the culprit overwinters on junipers nearby." },
+  whitefly:{ name:"Whitefly", signs:"Clouds of tiny white insects rise from the undersides of leaves when brushed.",
+    fix:"On outdoor brassicas it's mostly cosmetic — hose colonies off and carry on. Under cover, hang sticky traps and let parasitic wasps or cooler airflow do the rest." },
+  spidermite:{ name:"Red spider mite", signs:"Fine webbing and pale, mottled, bronzed leaves in hot dry spells, especially under cover.",
+    fix:"They hate humidity: mist plants, damp down paths, and keep compost moist. Indoors, biological controls work well; badly hit leaves won't recover, so remove them." },
+  peachleafcurl:{ name:"Peach leaf curl", signs:"Spring leaves emerge red, blistered and puckered, then fall.",
+    fix:"The fungus needs winter rain on the buds — a rain cover from midwinter to spring works wonders on wall-trained trees. Clear fallen leaves, feed well, and the second flush usually grows clean." },
+  clubroot:{ name:"Clubroot", signs:"Brassicas wilt on sunny days and stay stunted; roots are swollen and distorted when lifted.",
+    fix:"No cure once it's in the soil, so prevention matters: improve drainage, lime to raise pH, rotate brassicas on a long cycle, and choose resistant varieties." },
+  asparagusbeetle:{ name:"Asparagus beetle", signs:"Chequered orange-and-black beetles and grey larvae grazing the spears and ferns.",
+    fix:"Pick adults and larvae off by hand through the season, and cut down and clear the old ferns each autumn so they have nowhere to overwinter." },
+  brownrot:{ name:"Brown rot", signs:"Fruit rots on the tree in soft brown patches ringed with buff-coloured pustules; some shrivel and hang on as 'mummies'.",
+    fix:"Hygiene is everything: remove rotting and mummified fruit promptly, prune for open airflow, and handle fruit gently — the fungus enters through wounds." },
+  forkedroots:{ name:"Forked roots", signs:"Roots split into stubby fingers instead of one straight taper.",
+    fix:"Caused by stones, compaction or fresh manure. Sow direct into deep, raked, stone-free soil that was manured for a previous crop, and don't transplant." },
+  greenpotato:{ name:"Green tubers", signs:"Potatoes near the surface turn green where light reaches them.",
+    fix:"Green parts are mildly toxic — cut them away or discard badly affected tubers. Earth up plants well as they grow, and store the harvest somewhere properly dark." },
+  scale:{ name:"Scale insects", signs:"Small brown limpet-like bumps fixed along stems and leaf undersides; sticky honeydew and sooty mould below.",
+    fix:"Wipe colonies off with a damp cloth or soft toothbrush — repeat every week or two until clear. Check new growth in spring, when the mobile young are easiest to stop." },
+};
+const CROP_PROBLEMS = {
+  tomato:["blight","aphids","blossomendrot","splittingfruit","dampingoff","whitefly"],
+  potato:["blight","greenpotato"],
+  pepper:["aphids","blossomendrot","dampingoff"], chilli:["aphids","blossomendrot","dampingoff"],
+  eggplant:["aphids","spidermite","dampingoff"], physalis:["aphids","dampingoff"], okra:["aphids","spidermite"],
+  lettuce:["slugs","bolting","aphids","dampingoff"], rocket:["fleabeetle","bolting"], spinach:["slugs","bolting"],
+  chard:["slugs"], sorrel:["slugs","bolting"], celery:["slugs","bolting"], basil:["slugs","dampingoff"],
+  cilantro:["bolting"], dill:["bolting"], fennel:["bolting"],
+  cabbage:["cabbagewhite","cabbagerootfly","clubroot","slugs","birds","whitefly","splittingfruit"],
+  cauliflower:["cabbagewhite","cabbagerootfly","clubroot","slugs","birds","whitefly"],
+  broccoli:["cabbagewhite","cabbagerootfly","clubroot","slugs","birds","whitefly"],
+  kale:["cabbagewhite","cabbagerootfly","clubroot","slugs","birds","whitefly","fleabeetle"],
+  brussels:["cabbagewhite","cabbagerootfly","clubroot","slugs","birds","whitefly"],
+  kohlrabi:["cabbagewhite","cabbagerootfly","clubroot","slugs","bolting"],
+  pakchoi:["fleabeetle","cabbagerootfly","clubroot","slugs","bolting"],
+  turnip:["fleabeetle","cabbagewhite","cabbagerootfly","clubroot","bolting"],
+  radish:["fleabeetle","cabbagerootfly","clubroot","splittingfruit","bolting"],
+  carrot:["carrotfly","forkedroots","splittingfruit"], parsnip:["carrotfly","forkedroots"], parsley:["carrotfly"],
+  beetroot:["bolting","slugs"], onion:["rust","bolting"], garlic:["rust"], leek:["rust"], springonion:["rust"], chives:["rust"], mint:["rust"],
+  pea:["mice","birds","powderymildew","slugs","aphids"], beans:["slugs","aphids","mice","spidermite"],
+  broadbeans:["aphids","mice","slugs"], sweetcorn:["mice","birds","slugs"],
+  cucumber:["powderymildew","spidermite","slugs"], zucchini:["powderymildew","slugs","blossomendrot"],
+  pumpkin:["powderymildew","slugs"], butternut:["powderymildew","slugs"],
+  melon:["powderymildew","spidermite"], watermelon:["powderymildew","spidermite","blossomendrot"],
+  strawberry:["slugs","birds","vineweevil"], blueberry:["birds","vineweevil"],
+  raspberry:["birds","aphids"], blackberry:["birds"], goji:["birds"],
+  redcurrant:["sawfly","birds","aphids"], blackcurrant:["birds","aphids"], gooseberry:["sawfly","powderymildew","birds","aphids"],
+  grape:["powderymildew","birds"], asparagus:["asparagusbeetle","slugs"], artichoke:["aphids","slugs"],
+  apple:["codlingmoth","aphids","brownrot","powderymildew"], pear:["codlingmoth","rust","brownrot"], quince:["codlingmoth","brownrot"],
+  cherry:["birds","aphids","brownrot","splittingfruit"], plum:["aphids","brownrot"],
+  peach:["peachleafcurl","brownrot"], nectarine:["peachleafcurl","brownrot"], apricot:["peachleafcurl","brownrot"],
+  hazelnut:["birds"], walnut:["birds"], fig:["birds"],
+  lemon:["scale"], orange:["scale"], lime:["scale"], bay:["scale"], olive:["scale"],
+};
+
+/* sowing depth & spacing (cm): d=depth, s=plant spacing, r=row spacing, n=technique note */
+const TREE_NOTE = "When planting into the ground, set it at the depth it grew before — match the old soil level from its pot, or the dark soil mark on a bare-root stem. Keep the knobbly graft joint on the trunk above the soil, never buried.";
+const SOWING = {
+  tomato:{ d:0.5, s:50, r:75 }, pepper:{ d:0.5, s:45, r:60 }, chilli:{ d:0.5, s:45, r:60 },
+  eggplant:{ d:0.5, s:50, r:70 }, physalis:{ d:0.5, s:60, r:75 }, okra:{ d:1.5, s:40, r:60 },
+  cucumber:{ d:2, s:45, r:90 }, zucchini:{ d:3, s:90, r:100 }, pumpkin:{ d:3, s:120, r:150 },
+  butternut:{ d:3, s:90, r:120 }, melon:{ d:2, s:60, r:120 }, watermelon:{ d:2.5, s:90, r:150 },
+  carrot:{ d:1, s:5, r:30 }, parsnip:{ d:1.5, s:10, r:30 }, beetroot:{ d:2, s:10, r:30 },
+  radish:{ d:1, s:3, r:15 }, turnip:{ d:1.5, s:12, r:30 }, kohlrabi:{ d:1.5, s:20, r:30 },
+  potato:{ d:10, s:30, r:60 }, sweetpotato:{ s:30, r:75, n:"Plant rooted slips — not seed — buried up to their first leaves." },
+  onion:{ d:1, s:10, r:30 }, springonion:{ d:1, s:2, r:15 }, garlic:{ d:5, s:15, r:30 },
+  leek:{ d:1, s:15, r:30, n:"Sow shallow, then drop pencil-thick transplants into 15 cm holes — don't backfill, just water in — for long white stems." },
+  lettuce:{ d:0.5, s:25, r:30 }, spinach:{ d:1.5, s:10, r:30 }, chard:{ d:2, s:25, r:40 },
+  rocket:{ d:0.5, s:10, r:20 }, pakchoi:{ d:1, s:20, r:30 }, sorrel:{ d:1, s:30, r:35 },
+  celery:{ d:0, s:25, r:30 }, fennel:{ d:1, s:25, r:40 },
+  cabbage:{ d:1.5, s:45, r:60 }, cauliflower:{ d:1.5, s:60, r:60 }, broccoli:{ d:1.5, s:45, r:60 },
+  kale:{ d:1.5, s:45, r:60 }, brussels:{ d:1.5, s:60, r:75 },
+  pea:{ d:4, s:7, r:60 }, beans:{ d:4, s:15, r:45 }, broadbeans:{ d:5, s:20, r:45 },
+  sweetcorn:{ d:3, s:35, r:60, n:"Sow in a block of short rows, not one long line — corn is wind-pollinated and blocks fill the cobs." },
+  asparagus:{ d:15, s:35, r:120, n:"Set crowns in a trench, spread the roots over a ridge, and fill in gradually as shoots appear." },
+  artichoke:{ s:90, r:120, n:"Plant offsets level with the soil — the crown should sit at the surface, not below it." },
+  basil:{ d:0.5, s:20, r:25 }, parsley:{ d:1, s:15, r:25 }, cilantro:{ d:1, s:5, r:20 },
+  dill:{ d:1, s:15, r:25 }, chives:{ d:0.5, s:15, r:25 }, borage:{ d:1.5, s:30, r:40 },
+  savory:{ d:0.5, s:15, r:25 }, thyme:{ d:0.5, s:25, r:30 }, oregano:{ d:0.5, s:30, r:30 },
+  marjoram:{ d:0.5, s:25, r:25 }, sage:{ d:1, s:45, r:50 }, chamomile:{ d:0, s:20, r:25 },
+  lovage:{ d:1, s:60 },
+  mint:{ s:30, n:"Best from a young plant, confined to a pot sunk in the ground — loose, its runners take the bed." },
+  rosemary:{ s:60, n:"Start from a young plant at the same depth as its pot — seed is painfully slow." },
+  tarragon:{ s:45, n:"French tarragon doesn't come true from seed — always start from a plant or division." },
+  lavender:{ s:45, n:"Easiest from a young plant, set at the same depth as its pot in sharply drained soil." },
+  lemongrass:{ s:30, n:"Plant a rooted stalk or division with the base just below the surface." },
+  lemonbalm:{ s:40, n:"Plant at the same depth as its pot — it bulks up fast." },
+  lemonverbena:{ s:60, n:"Plant pot-depth in a warm corner; in cold areas keep it in the pot to move under cover." },
+  bay:{ s:150, n:"Plant at pot depth, or keep it in a large pot and clip to shape." },
+  strawberry:{ s:35, r:75, n:"Set the crown exactly at soil level — buried it rots, exposed it dries." },
+  blueberry:{ s:120, n:"Pot depth, in ericaceous (acid) soil or a large pot of it." },
+  raspberry:{ s:45, r:180, n:"Set canes about 7 cm deep and cut back to 25 cm after planting." },
+  blackberry:{ s:250, n:TREE_NOTE },
+  blackcurrant:{ s:150, n:"Plant 5 cm deeper than it grew in the pot — burying the base encourages strong new shoots." },
+  redcurrant:{ s:150, n:TREE_NOTE }, gooseberry:{ s:120, n:TREE_NOTE },
+  rhubarb:{ s:90, n:"Plant crowns with the buds just proud of the surface — never buried." },
+  grape:{ s:150, n:TREE_NOTE }, kiwi:{ s:300, n:TREE_NOTE }, passionfruit:{ s:250, n:TREE_NOTE },
+  goji:{ s:150, n:TREE_NOTE },
+  pineapple:{ s:50, n:"Nestle the base of a leafy crown 2–3 cm into free-draining mix and keep it warm." },
+  apple:{ s:350, n:TREE_NOTE+" Final spacing depends on the roots it's grafted onto — dwarf trees sit far closer." },
+  pear:{ s:400, n:TREE_NOTE }, quince:{ s:400, n:TREE_NOTE }, cherry:{ s:500, n:TREE_NOTE },
+  plum:{ s:400, n:TREE_NOTE }, peach:{ s:400, n:TREE_NOTE }, nectarine:{ s:400, n:TREE_NOTE },
+  apricot:{ s:400, n:TREE_NOTE }, almond:{ s:500, n:TREE_NOTE }, fig:{ s:300, n:TREE_NOTE },
+  olive:{ s:500, n:TREE_NOTE }, pomegranate:{ s:300, n:TREE_NOTE }, persimmon:{ s:500, n:TREE_NOTE },
+  walnut:{ s:1000, n:TREE_NOTE }, hazelnut:{ s:300, n:TREE_NOTE },
+  lemon:{ s:400, n:TREE_NOTE }, orange:{ s:400, n:TREE_NOTE }, lime:{ s:400, n:TREE_NOTE },
+  avocado:{ s:700, n:TREE_NOTE }, mango:{ s:800, n:TREE_NOTE },
+  banana:{ s:300, n:"Plant the corm or sucker at the depth it grew — it's a giant herb, not a tree." },
+};
+
+/* crops that genuinely thrive in containers, with a one-line pot tip */
+const POT_FRIENDLY = {
+  mint:"Perfect potted — it stops the runners taking over. Any 25 cm pot, kept moist.",
+  basil:"A 15–20 cm pot on a warm sill; water in the morning and pick often.",
+  parsley:"A 20 cm pot, deeper than you'd think — it has a taproot.",
+  cilantro:"A 15 cm pot, sown little and often; it bolts fast in heat.",
+  chives:"Any 15 cm pot; split the clump every couple of years.",
+  dill:"A deep 25 cm pot; sow direct, it sulks if transplanted.",
+  thyme:"A shallow terracotta pan and gritty mix — it likes life dry.",
+  oregano:"A 20 cm pot in full sun; trim to keep it bushy.",
+  marjoram:"A 20 cm pot in your sunniest spot; bring under cover in cold winters.",
+  sage:"A 25 cm pot with sharp drainage; replace woody plants every few years.",
+  rosemary:"Loves a terracotta pot and sharp drainage; go easy on winter water.",
+  lavender:"A terracotta pot and gritty mix; full sun, dry feet.",
+  tarragon:"A 25 cm pot lets you move French tarragon out of winter wet.",
+  savory:"A 15 cm pot in full sun does fine.",
+  chamomile:"A wide shallow pot; let it spill over the edge.",
+  sorrel:"A 25 cm pot in light shade keeps the leaves tender.",
+  lemonbalm:"Pot it like mint — vigorous roots, happiest contained.",
+  lemongrass:"A pot means you can winter it indoors — it hates cold.",
+  lemonverbena:"Grow it in a pot you can move under cover before frost.",
+  bay:"Classic in a pot — clip to shape and shelter from hard frost.",
+  lettuce:"A shallow trough; sow a pinch every few weeks and keep moist.",
+  rocket:"A window box is plenty; quick, shallow-rooted, cut-and-come-again.",
+  spinach:"A 20 cm-deep trough in light shade; keep it moist or it bolts.",
+  pakchoi:"A 20 cm pot each, or a trough; even moisture is everything.",
+  radish:"Any 15 cm-deep container; ready in a month.",
+  springonion:"A trough sown thickly; pull as needed.",
+  chard:"A 30 cm pot per plant; pick the outer leaves and it keeps giving.",
+  kale:"A 30 cm pot grows a compact plant; pick from the bottom up.",
+  kohlrabi:"A 25 cm pot; keep evenly moist for tender globes.",
+  beetroot:"A 30 cm-deep pot; thin early and water evenly.",
+  carrot:"A deep pot (30 cm+) and short, round varieties beat carrot fly too.",
+  garlic:"A 20 cm-deep pot, cloves 10 cm apart, full sun.",
+  potato:"Brilliant in a 40-litre bag — keep earthing up and never let it dry.",
+  sweetpotato:"A 40-litre bag in your hottest spot; plant slips deep.",
+  tomato:"A 40 cm pot or growbag per plant; daily summer water, weekly feed once fruiting.",
+  pepper:"Thrives in a 30 cm pot in your warmest corner; feed once flowering.",
+  chilli:"Pots suit it perfectly — warm roots mean hotter fruit. 30 cm is plenty.",
+  eggplant:"A 30 cm pot against a sunny wall; stake and feed well.",
+  okra:"A 30 cm pot somewhere truly hot; it sulks below 20°C.",
+  physalis:"Treat it like a pot tomato — 35 cm pot, sunny corner.",
+  cucumber:"One plant in a 35 cm pot with a cane wigwam; water generously.",
+  zucchini:"One plant in a 45 cm pot — thirsty and hungry, but very doable.",
+  beans:"Dwarf French varieties in a deep trough with twiggy support.",
+  pea:"Dwarf varieties in a 30 cm-deep trough; keep picking.",
+  strawberry:"Made for pots and baskets — just never let it dry while flowering.",
+  blueberry:"Often best in a pot: fill it with acid (ericaceous) compost and use rainwater.",
+  raspberry:"Compact patio varieties manage well in a 40 cm pot of rich compost.",
+  fig:"Fruits better with cramped roots — a 45 cm pot is ideal.",
+  pineapple:"A houseplant-sized pot in your warmest, brightest window.",
+  lemon:"The classic pot citrus — wheel it under cover before frost; feed spring to autumn.",
+  orange:"Happy in a large pot moved under cover for winter; feed through the growing season.",
+  lime:"The most cold-shy citrus — a pot you can bring indoors is the safest home.",
+  olive:"Handsome in a big terracotta pot; sharp drainage and light winter protection.",
+  pomegranate:"Takes to a large pot well — full sun and a dryish winter rest.",
+  apple:"On a dwarf rootstock it's happy for years in a 45–50 cm pot.",
+  peach:"Choose a patio variety — a pot also makes the rain cover for leaf curl easy.",
+  nectarine:"Patio varieties suit a large pot; cover from winter rain to dodge leaf curl.",
+  apricot:"Patio varieties suit a big pot in a sheltered sun-trap.",
+};
+
+/* what you actually put in the ground, and whether seed goes direct or starts indoors */
+const START_OVERRIDE = {
+  garlic:"Single cloves, pointy end up", potato:"Seed potatoes (small tubers)",
+  onion:"Seed, or small starter bulbs (\u2018sets\u2019)", sweetpotato:"Rooted slips",
+  springonion:"Seed \u2014 a pinch sown direct", pineapple:"A leafy fruit top (crown)",
+  lemongrass:"A rooted stalk or division",
+  basil:{ l:"Seed, or a living supermarket pot", k:"shop" },
+  parsley:{ l:"Seed, or a living herb pot", k:"shop" },
+  cilantro:{ l:"Seed (best), or a living herb pot", k:"shop" },
+  chives:{ l:"Seed, or a living herb pot", k:"shop" },
+  mint:{ l:"A young plant \u2014 a shop herb pot works", k:"shop" },
+  thyme:{ l:"Seed, or a young plant", k:"plant" },
+  oregano:{ l:"Seed, or a young plant", k:"plant" },
+  sage:{ l:"Seed, or a young plant", k:"plant" },
+  marjoram:{ l:"Seed, or a young plant", k:"plant" },
+};
+const INDOOR_START = { tomato:1, pepper:1, chilli:1, eggplant:1, physalis:1, okra:1, celery:1 };
+const EITHER_START = { cucumber:1, zucchini:1, pumpkin:1, butternut:1, melon:1, watermelon:1, sweetcorn:1, basil:1, lettuce:1, leek:1 };
+function startFor(crop){
+  const o = START_OVERRIDE[crop.id];
+  if(o) return typeof o==="string" ? { label:o, kind:"other" } : { label:o.l, kind:o.k };
+  const g = String(crop.germ||"");
+  if(/^\d/.test(g)){
+    if(INDOOR_START[crop.id]) return { label:"Seed \u2014 start indoors in warmth", kind:"indoor" };
+    if(EITHER_START[crop.id]) return { label:"Seed \u2014 in pots, or direct once warm", kind:"either" };
+    return { label:"Seed \u2014 sown direct where it grows", kind:"direct" };
+  }
+  const t = g.replace(/^from\s+/,"");
+  return { label: t.charAt(0).toUpperCase()+t.slice(1), kind: /plant/i.test(t) ? "plant" : "other" };
+}
+
+/* how to pick it so it keeps producing */
+const PICKING = {
+  basil:"Cut the stem just above a pair of leaves — two new shoots sprout from the joint. Never strip single leaves off a stem; you'll be left with a bald stick.",
+  mint:"Cut whole stems low and often — it regrows fast and stays leafy instead of leggy.",
+  oregano:"Snip stems just above a leaf joint; a hard trim as flowers appear brings a fresh flush.",
+  marjoram:"Cut sprigs above a leaf pair; keep picking and it keeps branching.",
+  lemonbalm:"Cut stems back hard — new growth is the tender, fragrant part.",
+  thyme:"Snip soft green tips with scissors, but never cut back into bare brown wood — it won't regrow.",
+  rosemary:"Take soft tip sprigs through the season; stay out of the old bare wood.",
+  sage:"Pick leaves or soft tips freely in summer; go gently in autumn so it toughens up for winter.",
+  tarragon:"Pinch the top few centimetres of each stem — the tips have the finest flavour.",
+  savory:"Cut sprigs as the first flowers show — that's peak flavour.",
+  lavender:"Cut stems just as the first florets open, with a good length of stalk.",
+  lemonverbena:"Pick tips and leaves through summer; a mid-season trim keeps it bushy.",
+  lemongrass:"Cut or twist whole stalks off at the base once they're finger-thick.",
+  bay:"Pick single mature leaves any time of year — older leaves have more flavour than new ones.",
+  chamomile:"Pick the flowers when fully open, pinched off just behind the head.",
+  parsley:"Cut whole outer stems right at the base — new growth comes from the centre, so leave that alone.",
+  cilantro:"Take whole outer stems at the base, or cut the whole plant 3 cm up and let it regrow once.",
+  chives:"Shear the clump like a haircut, 3 cm above the soil — it regrows in a fortnight.",
+  dill:"Take feathery fronds from the outside; leave the centre to keep producing.",
+  lovage:"Cut outer stems at the base — and remember a little goes a long way.",
+  sorrel:"Pick outer leaves at the base while young; snap off any flower stalks on sight.",
+  borage:"Pick young leaves and open flowers — both are edible; older leaves get bristly.",
+  lettuce:"Either cut the whole head, or take outer leaves and let the heart keep growing.",
+  rocket:"Pick outer leaves, or shear the lot 3 cm above the crown for a second flush.",
+  spinach:"Pick outer leaves little and often; the centre keeps making more.",
+  chard:"Cut or twist outer stems off at the base; the plant crops for months.",
+  kale:"Work up the stem taking the lower leaves; never cut the crown at the top.",
+  pakchoi:"Cut the whole head at the base, or take outer leaves as you need them.",
+  celery:"Snap or cut outer stems at the base and let the heart keep growing.",
+  springonion:"Pull the whole plant, roots and all, once it's pencil-thick.",
+  fennel:"Cut the bulb at soil level; the feathery tops are good any time.",
+  asparagus:"Cut or snap spears at soil level when 15–18 cm tall — check every day or two in season.",
+  rhubarb:"Pull and twist stalks off at the base — never cut — and always leave the plant half its stalks.",
+  artichoke:"Cut each bud with 5 cm of stem while the scales are still tight and closed.",
+  broccoli:"Cut the central head first — smaller side shoots follow for weeks afterwards.",
+  brussels:"Snap sprouts off from the bottom of the stem upwards as they firm.",
+  cabbage:"Cut the head at the base once it feels solid when pressed.",
+  zucchini:"Cut — don't twist — at 15–20 cm, and check daily; they turn into marrows overnight.",
+  cucumber:"Cut the stalk with a knife; pulling damages the vine.",
+  beans:"Pick young and pick often — use two hands so you don't snap the stem — and the plant keeps producing.",
+  pea:"Hold the vine with one hand and pick with the other; pods left on stop new ones forming.",
+  okra:"Cut pods at 8–10 cm — daily in hot weather — before they turn woody.",
+  tomato:"Snap the stalk at the little knuckle just above the fruit, or cut whole trusses.",
+  pepper:"Cut with snips, leaving a short stem on the fruit — pulling tears the branch.",
+  chilli:"Cut with a stub of stem; picking green prompts more fruit, leaving them ripens the heat.",
+  eggplant:"Cut the tough stalk with secateurs while the skin is still glossy — dull means overripe.",
+  sweetcorn:"When the silks turn brown, twist the cob down and off; a pierced kernel should bleed milky.",
+  strawberry:"Pinch through the stalk so the green cap stays on the berry — it keeps far better.",
+  raspberry:"A ripe berry slides off its core with the gentlest pull, leaving the core behind.",
+  blackberry:"Ripe when it pulls away easily, core and all, and has gone fully black-dull.",
+};
+
 const MS = ["J","F","M","A","M","J","J","A","S","O","N","D"];
 const MFULL = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const STAGE_INFO = {
@@ -794,7 +1149,7 @@ function suitability(crop, loc){
 
 /* --------------------------- crop glyphs -------------------------- */
 function Glyph({ id, size=46 }){
-  const ink="#1E342A";
+  const ink="var(--ink)";
   const common = { width:size, height:size, viewBox:"0 0 48 48", fill:"none",
     stroke:ink, strokeWidth:2, strokeLinecap:"round", strokeLinejoin:"round" };
   if(id==="tomato") return (
@@ -810,7 +1165,7 @@ function Glyph({ id, size=46 }){
       <circle cx="20" cy="30" r="0.9" fill="#FBF3E6" stroke="none"/><circle cx="27" cy="31" r="0.9" fill="#FBF3E6" stroke="none"/><circle cx="24" cy="35" r="0.9" fill="#FBF3E6" stroke="none"/></svg>);
   if(id==="lettuce") return (
     <svg {...common}><path d="M24 40c-9 0-14-5-14-11 3-2 6-1 8 1 1-4 4-6 6-6s5 2 6 6c2-2 5-3 8-1 0 6-5 11-14 11Z" fill="#7FA86A"/>
-      <path d="M24 24v16M16 31c3 2 5 5 5 9M32 31c-3 2-5 5-5 9" stroke="#3C5E3A"/></svg>);
+      <path d="M24 24v16M16 31c3 2 5 5 5 9M32 31c-3 2-5 5-5 9" stroke="var(--t-green)"/></svg>);
   if(id==="pepper") return (
     <svg {...common}><path d="M16 24c0 9 4 15 8 15s8-6 8-15c-3 1.5-5 1.5-8 1.5S19 25.5 16 24Z" fill="#D9603A"/>
       <path d="M24 25.5V14M24 14c0-2 2-3 4-3M24 14c0-2-2-3-4-3" stroke="#4E7A4C"/></svg>);
@@ -824,10 +1179,10 @@ function Glyph({ id, size=46 }){
     <svg {...common}>
       <g transform="rotate(12 24 24)">
         <rect x="18" y="9" width="12" height="31" rx="6" fill="#7FA86A"/>
-        <circle cx="22" cy="16" r="0.9" fill="#3C5E3A" stroke="none"/>
-        <circle cx="26" cy="22" r="0.9" fill="#3C5E3A" stroke="none"/>
-        <circle cx="22" cy="28" r="0.9" fill="#3C5E3A" stroke="none"/>
-        <circle cx="26" cy="34" r="0.9" fill="#3C5E3A" stroke="none"/>
+        <circle cx="22" cy="16" r="0.9" fill="var(--t-green)" stroke="none"/>
+        <circle cx="26" cy="22" r="0.9" fill="var(--t-green)" stroke="none"/>
+        <circle cx="22" cy="28" r="0.9" fill="var(--t-green)" stroke="none"/>
+        <circle cx="26" cy="34" r="0.9" fill="var(--t-green)" stroke="none"/>
       </g>
       <path d="M22 8c0-2 1-3 3-3" stroke="#4E7A4C"/></svg>);
   if(id==="eggplant") return (
@@ -1382,10 +1737,48 @@ function downloadICS(filename, events){
     setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 400);
   }catch(err){ /* sandboxed previews may block downloads; the deployed app won't */ }
 }
-function cropICSEvents(crop, sownAt){
-  return stageEvents(crop, sownAt)
+function downloadText(filename, text, mime){
+  try{
+    if(typeof document==="undefined") return;
+    const blob=new Blob([text],{ type:(mime||"application/json")+";charset=utf-8" });
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a"); a.href=url; a.download=filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 400);
+  }catch(err){}
+}
+/* backup file: everything Plot keeps on this device, in one JSON */
+function makeBackup(s){
+  return { app:"plot", version:1, exportedAt:new Date().toISOString(),
+    loc: s.loc ? s.loc.id : null, saved: s.saved||[], sownDates: s.sownDates||{},
+    notes: s.notes||{}, harvests: s.harvests||{}, photos: s.photos||{} };
+}
+function validateBackup(obj){
+  if(!obj || typeof obj!=="object" || obj.app!=="plot" || typeof obj.version!=="number")
+    return { error:"That file isn't a Plot backup." };
+  if(obj.version>1) return { error:"This backup was made by a newer version of Plot." };
+  const arr=(v)=>Array.isArray(v)?v.filter(x=>typeof x==="string"):[];
+  const dict=(v)=>(v && typeof v==="object" && !Array.isArray(v))?v:{};
+  const data={ loc: typeof obj.loc==="string"?obj.loc:null, saved:arr(obj.saved),
+    sownDates:dict(obj.sownDates), notes:dict(obj.notes), harvests:dict(obj.harvests), photos:dict(obj.photos) };
+  const city = data.loc ? CITIES.find(c=>c.id===data.loc) : null;
+  const photoCount = Object.values(data.photos).reduce((n,o)=>n+Object.keys(dict(o)).length,0);
+  const harvestCount = Object.values(data.harvests).reduce((n,a)=>n+(Array.isArray(a)?a.length:0),0);
+  return { error:null, data, exportedAt: obj.exportedAt||null,
+    summary:{ city: city?city.city:null, crops:data.saved.length, dates:Object.keys(data.sownDates).length,
+      notes:Object.keys(data.notes).length, photos:photoCount, harvests:harvestCount } };
+}
+function cropICSEvents(crop, sownAt, loc){
+  const out = stageEvents(crop, sownAt)
     .filter(e=>e.ts > Date.now()-86400000)
     .map(e=>({ ts:e.ts, title:`${crop.name} — expect ${e.label} (Plot)`, desc:(STAGE_INFO[e.label]||"")+` Expected around day ${e.day} from sowing — weather can shift this by a few days.` }));
+  const sd = SUCCESSION[crop.id];
+  if(sd && !crop.perennial && sownAt){
+    const due = sownAt + sd*86400000;
+    const okWin = !loc || (s=>s.kind==="now"||s.kind==="year")(status(crop,loc));
+    if(due > Date.now() && okWin) out.push({ ts:due, title:`${crop.name} — sow your next batch (Plot)`, desc:`A succession crop: a short new row every ${succLabel(sd)} keeps the supply steady instead of a glut.` });
+  }
+  return out.sort((a,b)=>a.ts-b.ts);
 }
 /* shrink a camera photo so it fits the app's small on-device store */
 function compressImage(file, maxDim, quality){
@@ -1421,9 +1814,30 @@ function fmtForecastDay(dateStr){
   try{ return new Date(dateStr+"T12:00:00").toLocaleDateString(undefined,{ weekday:"short", day:"numeric", month:"short" }); }
   catch(e){ return dateStr; }
 }
+/* sum a crop's harvest entries into a readable total, e.g. "1.4 kg · 6 items" */
+const HARVEST_UNITS = [["g","g","g"],["kg","kg","kg"],["item","item","items"],["bunch","bunch","bunches"],["handful","handful","handfuls"]];
+function harvestTotals(entries){
+  if(!entries || !entries.length) return "";
+  let grams=0; const other={};
+  for(const e of entries){
+    const q=+e.qty || 0;
+    if(e.unit==="g") grams+=q;
+    else if(e.unit==="kg") grams+=q*1000;
+    else other[e.unit]=(other[e.unit]||0)+q;
+  }
+  const parts=[];
+  if(grams>0) parts.push(grams>=1000 ? (Math.round(grams/100)/10)+" kg" : Math.round(grams)+" g");
+  for(const [u,sing,plur] of HARVEST_UNITS){
+    if(u==="g"||u==="kg") continue;
+    const q=other[u]; if(!q) continue;
+    const n=Math.round(q*10)/10;
+    parts.push(n+" "+(n===1?sing:plur));
+  }
+  return parts.join(" · ");
+}
 
 /* control on the detail screen to set/clear when a crop was sown */
-function SowControl({ crop, sownAt, onSet }){
+function SowControl({ crop, sownAt, onSet, loc }){
   const todayStr = new Date().toISOString().slice(0,10);
   if(sownAt){
     const dateStr = new Date(sownAt).toLocaleDateString(undefined,{ day:"numeric", month:"short", year:"numeric" });
@@ -1445,7 +1859,7 @@ function SowControl({ crop, sownAt, onSet }){
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           {ready ? <Check size={18} color="var(--ochre)"/> : <Sprout size={18} color="var(--moss)"/>}
           <span style={{ flex:1, fontSize:14, color:"var(--ink)" }}>
-            {ready && <b style={{ display:"block", fontSize:14.5, color:"#8A6716" }}>Ready to harvest</b>}
+            {ready && <b style={{ display:"block", fontSize:14.5, color:"var(--t-ochre)" }}>Ready to harvest</b>}
             <span style={{ fontWeight:ready?500:600, color:ready?"var(--ink2)":"var(--ink)", fontSize:ready?12.5:14 }}>{line}</span>
           </span>
           <button className="iconbtn" onClick={()=>onSet(null)} aria-label="Clear date"><X size={16}/></button>
@@ -1456,11 +1870,29 @@ function SowControl({ crop, sownAt, onSet }){
               Next: <b style={{ color:"var(--ink)" }}>{next.label}</b> — {fmtDay(next.ts)} ({relDay(next.ts)})
             </span>
             <button className="chip" style={{ display:"inline-flex", alignItems:"center", gap:6, fontSize:12, padding:"5px 11px" }}
-              onClick={()=>downloadICS(`plot-${crop.id}-stages.ics`, cropICSEvents(crop, sownAt))}>
+              onClick={()=>downloadICS(`plot-${crop.id}-stages.ics`, cropICSEvents(crop, sownAt, loc))}>
               <CalendarDays size={13}/> Calendar reminders
             </button>
           </div>
         )}
+        {(()=>{
+          const sd = !crop.perennial && SUCCESSION[crop.id];
+          if(!sd) return null;
+          const daysIn = Math.max(0, Math.floor((Date.now()-sownAt)/86400000));
+          const okWin = !loc || (s=>s.kind==="now"||s.kind==="year")(status(crop,loc));
+          if(daysIn < sd || !okWin) return null;
+          return (
+            <div style={{ marginTop:10, paddingTop:10, borderTop:`1px solid ${bd}` }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                <span style={{ fontSize:12.5, color:"var(--t-ochre)", flex:1, minWidth:150 }}>
+                  <b>Next batch due</b> — it's been {daysIn} days. Little and often keeps it coming.
+                </span>
+                <button className="chip on" style={{ fontSize:12, padding:"5px 11px", background:"var(--ochre)", borderColor:"var(--ochre)" }} onClick={()=>onSet(Date.now())}>Sown a new batch</button>
+              </div>
+              <p className="mono" style={{ fontSize:8.5, color:"var(--muted)", letterSpacing:".04em", margin:"6px 0 0" }}>TRACKS YOUR NEWEST BATCH — THE HARVEST LOG KEEPS THE HISTORY</p>
+            </div>
+          );
+        })()}
       </div>
     );
   }
@@ -1525,7 +1957,7 @@ function PhotoJournal({ crop, sownAt, shots, onAdd, onDelete }){
         })}
       </div>
       {busy && <p className="mono" style={{ fontSize:10, color:"var(--muted)", margin:"4px 0 0", letterSpacing:".04em" }}>SAVING PHOTO…</p>}
-      {err && <p style={{ fontSize:12.5, color:"#9A3D22", margin:"6px 0 0", lineHeight:1.4 }}>{err}</p>}
+      {err && <p style={{ fontSize:12.5, color:"var(--t-danger)", margin:"6px 0 0", lineHeight:1.4 }}>{err}</p>}
       {cur && (
         <div className="rise" style={{ marginTop:10, background:"var(--card)", border:"1px solid var(--line)", borderRadius:14, overflow:"hidden" }}>
           <img src={cur.img} alt={crop.name+" at "+view} style={{ width:"100%", display:"block", maxHeight:340, objectFit:"cover" }} />
@@ -1550,6 +1982,89 @@ function PhotoJournal({ crop, sownAt, shots, onAdd, onDelete }){
   );
 }
 
+/* freeform per-crop note, kept on-device */
+function NotesCard({ crop, value, onChange }){
+  return (
+    <div style={{ marginTop:12, background:"var(--card2)", border:"1px solid var(--line)", borderRadius:14, padding:"12px 14px" }}>
+      <div className="label" style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}><NotebookPen size={13}/> My notes</div>
+      <textarea className="input" value={value||""} maxLength={2000} rows={3}
+        onChange={(e)=>onChange(e.target.value)}
+        placeholder="Variety, where it's planted, what worked…"
+        style={{ padding:"10px 12px", borderRadius:11, fontSize:14, lineHeight:1.45, minHeight:64, resize:"vertical", boxSizing:"border-box" }} />
+      <p className="mono" style={{ fontSize:9, color:"var(--muted)", letterSpacing:".05em", margin:"6px 0 0" }}>KEPT ON THIS DEVICE, LIKE YOUR SOW DATES</p>
+    </div>
+  );
+}
+
+/* one-row "how to pick" tip, expandable */
+function PickRow({ crop }){
+  const txt = PICKING[crop.id];
+  const [open, setOpen] = useState(false);
+  if(!txt) return null;
+  return (
+    <div style={{ marginTop:12, background:"var(--card2)", border:"1px solid var(--line)", borderRadius:14, overflow:"hidden" }}>
+      <button onClick={()=>setOpen(o=>!o)}
+        style={{ width:"100%", display:"flex", alignItems:"center", gap:8, padding:"12px 14px", background:"transparent", border:0, cursor:"pointer", fontFamily:"inherit", textAlign:"left" }}>
+        <Scissors size={14} color="var(--clay)"/>
+        <span className="label" style={{ flex:1, margin:0 }}>How to pick</span>
+        <ChevronRight size={15} color="var(--muted)" style={{ transform:open?"rotate(90deg)":"none", transition:"transform .15s" }}/>
+      </button>
+      {open && <p style={{ margin:0, padding:"0 14px 12px", fontSize:13, color:"var(--ink2)", lineHeight:1.5, animation:"fade .2s ease both" }}>{txt}</p>}
+    </div>
+  );
+}
+
+/* log each pick: amount + unit + date, with a running total */
+function HarvestCard({ crop, sownAt, entries, onAdd, onDelete }){
+  const [qty, setQty] = useState("");
+  const [unit, setUnit] = useState("g");
+  const todayStr = new Date().toISOString().slice(0,10);
+  const [date, setDate] = useState(todayStr);
+  if(!sownAt && (!entries || !entries.length)) return null;
+  const list = [...(entries||[])].sort((a,b)=>b.ts-a.ts);
+  const total = harvestTotals(entries);
+  const add = ()=>{
+    const q = parseFloat(qty);
+    if(!q || q<=0) return;
+    const ts = date===todayStr ? Date.now() : new Date(date+"T12:00:00").getTime();
+    onAdd({ qty:q, unit, ts });
+    setQty("");
+  };
+  const unitLabel = (e)=>{ const u=HARVEST_UNITS.find(x=>x[0]===e.unit); return u ? (e.qty===1?u[1]:u[2]) : e.unit; };
+  return (
+    <div style={{ marginTop:12, background:"var(--card2)", border:"1px solid var(--line)", borderRadius:14, padding:"12px 14px" }}>
+      <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:8, marginBottom:9 }}>
+        <div className="label" style={{ display:"flex", alignItems:"center", gap:6, margin:0 }}><Wheat size={13}/> Harvest log</div>
+        {total && <span className="mono" style={{ fontSize:10.5, fontWeight:700, color:"var(--t-ochre)", letterSpacing:".03em" }}>{total.toUpperCase()} SO FAR</span>}
+      </div>
+      <div style={{ display:"flex", gap:7, alignItems:"center", flexWrap:"wrap" }}>
+        <input type="number" inputMode="decimal" min="0" step="any" value={qty} placeholder="Amount"
+          onChange={e=>setQty(e.target.value)}
+          style={{ width:84, fontFamily:"inherit", fontSize:13.5, padding:"8px 10px", borderRadius:9, border:"1px solid var(--line)", background:"var(--paper)", color:"var(--ink)", outline:"none" }} />
+        <select value={unit} onChange={e=>setUnit(e.target.value)}
+          style={{ fontFamily:"inherit", fontSize:13.5, padding:"8px 8px", borderRadius:9, border:"1px solid var(--line)", background:"var(--paper)", color:"var(--ink)" }}>
+          {HARVEST_UNITS.map(([u,s,p])=><option key={u} value={u}>{p}</option>)}
+        </select>
+        <input type="date" max={todayStr} value={date} onChange={e=>e.target.value && setDate(e.target.value)}
+          style={{ fontFamily:"inherit", fontSize:12.5, padding:"8px 8px", borderRadius:9, border:"1px solid var(--line)", background:"var(--paper)", color:"var(--ink)" }} />
+        <button className="chip on" onClick={add} style={{ fontSize:12.5, padding:"7px 14px" }}>Add</button>
+      </div>
+      {list.length>0 && (
+        <div style={{ marginTop:10, borderTop:"1px solid var(--line)" }}>
+          {list.map(e=>(
+            <div key={e.id} style={{ display:"flex", alignItems:"center", gap:9, padding:"7px 0", borderBottom:"1px solid var(--line)" }}>
+              <span className="mono" style={{ fontSize:10.5, color:"var(--muted)", letterSpacing:".03em", width:86, flexShrink:0 }}>{fmtDay(e.ts).toUpperCase()}</span>
+              <span style={{ flex:1, fontSize:13.5, fontWeight:600, color:"var(--ink)" }}>{e.qty} {unitLabel(e)}</span>
+              <button className="iconbtn" style={{ padding:4 }} aria-label="Delete entry" onClick={()=>onDelete(e.id)}><X size={14}/></button>
+            </div>
+          ))}
+        </div>
+      )}
+      {list.length===0 && <p style={{ fontSize:12.5, color:"var(--muted)", margin:"9px 0 0" }}>Log each pick — even rough amounts — and see what this plant gives you over the season.</p>}
+    </div>
+  );
+}
+
 function StatusBadge({ st, perennial }){
   const [open, setOpen] = useState(false);
   if(st.kind!=="now" && st.kind!=="year" && st.kind!=="wait") return null;
@@ -1557,7 +2072,7 @@ function StatusBadge({ st, perennial }){
   const Verb = perennial ? "Plant" : "Sow";
   const wait = st.kind==="wait";
   const bg = wait ? tint("#BE8E2C",.18) : tint("#4E7A4C",.16);
-  const col = wait ? "#8A6716" : "#3C5E3A";
+  const col = wait ? "var(--t-ochre)" : "var(--t-green)";
   const accent = wait ? "var(--ochre)" : "var(--moss)";
   let label, info;
   if(st.kind==="now"){ label = `Good to ${verb} now`; info = `The current month falls inside this crop's ${verb}ing window for your city, so now's a good time to ${verb} it.`; }
@@ -1578,6 +2093,46 @@ function StatusBadge({ st, perennial }){
 }
 
 /* ----------------------- growth timeline ------------------------- */
+function SuccessionBadge({ crop }){
+  const d = SUCCESSION[crop.id];
+  const [open, setOpen] = useState(false);
+  if(!d || crop.perennial) return null;
+  return (
+    <div style={{ display:"inline-block" }}>
+      <span className="statusbadge" onClick={(e)=>{ e.stopPropagation(); setOpen(o=>!o); }}
+        style={{ background:tint("#BE8E2C",.16), color:"var(--t-ochre)", cursor:"pointer" }}>
+        <Repeat size={13}/> Sow little &amp; often <Info size={12} style={{ opacity:.55 }}/>
+      </span>
+      {open && (
+        <div style={{ marginTop:10, background:"var(--card)", border:"1px solid var(--line)", borderLeft:"3px solid var(--ochre)", borderRadius:12, padding:"10px 13px", maxWidth:330, animation:"fade .25s ease both" }}>
+          <p style={{ margin:0, fontSize:13, color:"var(--ink2)", lineHeight:1.45 }}>
+            {crop.name} is a succession crop — instead of one big sowing, sow a short row every {succLabel(d)} through its season for a steady supply rather than a glut. Once it's in the ground, Plot will nudge you when the next batch is due.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PotBadge({ crop }){
+  const tip = POT_FRIENDLY[crop.id];
+  const [open, setOpen] = useState(false);
+  if(!tip) return null;
+  return (
+    <div style={{ display:"inline-block" }}>
+      <span className="statusbadge" onClick={(e)=>{ e.stopPropagation(); setOpen(o=>!o); }}
+        style={{ background:tint("#4E8C8A",.15), color:"var(--t-teal)", cursor:"pointer" }}>
+        <Flower size={13}/> Happy in a pot <Info size={12} style={{ opacity:.55 }}/>
+      </span>
+      {open && (
+        <div style={{ marginTop:10, background:"var(--card)", border:"1px solid var(--line)", borderLeft:"3px solid #4E8C8A", borderRadius:12, padding:"10px 13px", maxWidth:330, animation:"fade .25s ease both" }}>
+          <p style={{ margin:0, fontSize:13, color:"var(--ink2)", lineHeight:1.45 }}>{tip}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Timeline({ crop, sownAt }){
   const total = crop.stages[crop.stages.length-1][1] || 1;
   const [sel, setSel] = useState(null);
@@ -1921,6 +2476,141 @@ function TempBar({ range }){
 }
 
 /* --------------------------- my plot ----------------------------- */
+/* good/bad neighbours card on the crop detail page */
+function CompanionsCard({ crop, onOpen }){
+  const { good, bad } = companionsFor(crop.id);
+  if(!good.length && !bad.length) return null;
+  const Chip = ({ c, tone })=>(
+    <button className="chip" onClick={()=>onOpen(c.id)}
+      style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"5px 11px 5px 6px", fontSize:12.5,
+        background: tone==="good" ? tint("#4E7A4C",.10) : tint("#BD5736",.10),
+        borderColor: tone==="good" ? tint("#4E7A4C",.35) : tint("#BD5736",.35),
+        color:"var(--ink)" }}>
+      <span style={{ width:22, height:22, borderRadius:7, background:"var(--card)", display:"inline-flex", alignItems:"center", justifyContent:"center", border:"1px solid var(--line)" }}>
+        <Glyph id={c.id} size={16}/>
+      </span>
+      {c.name}
+    </button>
+  );
+  return (
+    <div className="spec" style={{ marginTop:11 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:7 }}><Sprout size={16} color="var(--moss)"/><span className="label">Neighbours</span></div>
+      {good.length>0 && (
+        <>
+          <div style={{ fontSize:12, fontWeight:700, color:"var(--t-green)", margin:"10px 0 6px" }}>Grows well beside</div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>{good.map(c=><Chip key={c.id} c={c} tone="good"/>)}</div>
+        </>
+      )}
+      {bad.length>0 && (
+        <>
+          <div style={{ fontSize:12, fontWeight:700, color:"var(--t-danger)", margin:"12px 0 6px" }}>Keep apart from</div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>{bad.map(c=><Chip key={c.id} c={c} tone="bad"/>)}</div>
+        </>
+      )}
+      <p style={{ fontSize:11.5, color:"var(--muted)", margin:"11px 0 0", lineHeight:1.45 }}>
+        Companion planting is gardeners' tradition more than settled science — pairings that often help (shared space, pest confusion) or often clash (competition, shared diseases), not guarantees.
+      </p>
+    </div>
+  );
+}
+
+/* sowing depth & spacing card with tap-to-explain stats */
+function SowingCard({ crop }){
+  const sw = SOWING[crop.id];
+  const [sel, setSel] = useState(null);
+  if(!sw) return null;
+  const peren = !!crop.perennial;
+  const fmt = (v)=> v>=100 ? (Math.round(v/10)/10>=10 ? Math.round(v/100*10)/10+" m" : (v/100)+" m") : v+" cm";
+  const depthStr = sw.d===undefined ? null : sw.d===0 ? "Surface" : sw.d<1 ? (sw.d*10)+" mm" : sw.d+" cm";
+  const stats=[];
+  if(depthStr) stats.push(["depth","Depth",depthStr]);
+  if(sw.s) stats.push(["space", crop.type==="Tree" ? "Between trees" : "Between plants", fmt(sw.s)]);
+  if(sw.r) stats.push(["rows","Between rows", fmt(sw.r)]);
+  if(!stats.length && !sw.n) return null;
+  const start = startFor(crop);
+  const EXPL = {
+    start: start.kind==="shop" ? "A living herb pot from the shop is dozens of seedlings crammed together — tease the rootball apart into three or four clumps, replant each with room to breathe, and they'll romp away instead of fading on the windowsill."
+      : start.kind==="plant" ? "A ready-grown plant from the garden centre buys you a head start of months — set it at the same depth it grew in its pot."
+      : start.kind==="indoor" ? "Sow in small pots somewhere warm and bright, then plant out once frosts are done — these crops need a head start the open ground can't give."
+      : start.kind==="either" ? "Happy either way: start in pots for an early jump, or sow straight into the soil once it's properly warm."
+      : start.kind==="direct" ? "Sow straight into the soil where it will grow — it dislikes being transplanted, so no pots needed."
+      : "This one starts from living material rather than a packet of seed — the note below covers how to set it.",
+    depth: sw.d===0
+      ? "Press the seed onto the surface and don't cover it — it needs light to germinate. Keep it gently moist until it sprouts."
+      : `Sow about ${depthStr} deep — a good rule of thumb is two to three times the seed's own width. Too deep and the seedling runs out of steam before reaching light; too shallow and it dries out.`,
+    space: peren
+      ? `Leave about ${sw.s?fmt(sw.s):""} between plants — it looks generous now, but the roots and canopy will fill it.`
+      : `About ${sw.s?fmt(sw.s):""} between plants gives each its share of light, water and air. Thin seedlings ruthlessly — crowding means mildew and small pickings.`,
+    rows: `Keep rows about ${sw.r?fmt(sw.r):""} apart — room to hoe, water and pick without trampling the bed.`,
+  };
+  return (
+    <div style={{ marginTop:12, background:"var(--card2)", border:"1px solid var(--line)", borderRadius:14, padding:"12px 14px" }}>
+      <div className="label" style={{ display:"flex", alignItems:"center", gap:6, marginBottom:9 }}><Sprout size={13}/> {peren ? "Planting" : "Sowing"}</div>
+      <div onClick={()=>setSel(sel==="start"?null:"start")}
+        style={{ background:"var(--paper2)", borderRadius:9, padding:"7px 10px", cursor:"pointer", marginBottom:7,
+          border: sel==="start" ? "1px solid var(--clay)" : "1px solid transparent" }}>
+        <div className="mono" style={{ fontSize:9, color:"var(--muted)", letterSpacing:".06em" }}>START FROM</div>
+        <div className="fr" style={{ fontSize:15, fontWeight:600, color: sel==="start" ? "var(--clay)" : "var(--ink)", lineHeight:1.2 }}>{start.label}</div>
+      </div>
+      {stats.length>0 && (
+        <div style={{ display:"flex", gap:7 }}>
+          {stats.map(([k,lab,val])=>(
+            <div key={k} onClick={()=>setSel(sel===k?null:k)}
+              style={{ flex:1, background:"var(--paper2)", borderRadius:9, padding:"7px 10px", cursor:"pointer",
+                border: sel===k ? "1px solid var(--clay)" : "1px solid transparent" }}>
+              <div className="mono" style={{ fontSize:9, color:"var(--muted)", letterSpacing:".06em" }}>{lab.toUpperCase()}</div>
+              <div className="fr" style={{ fontSize:15.5, fontWeight:600, color: sel===k ? "var(--clay)" : "var(--ink)", lineHeight:1.15 }}>{val}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {sel && (
+        <div style={{ marginTop:9, background:"var(--card)", border:"1px solid var(--line)", borderLeft:"3px solid var(--clay)", borderRadius:10, padding:"9px 12px", animation:"fade .2s ease both", display:"flex", gap:8, alignItems:"flex-start" }}>
+          <p style={{ margin:0, flex:1, fontSize:12.5, color:"var(--ink2)", lineHeight:1.45 }}>{EXPL[sel]}</p>
+          <X size={14} color="var(--muted)" style={{ cursor:"pointer", flexShrink:0, marginTop:2 }} onClick={()=>setSel(null)}/>
+        </div>
+      )}
+      {sw.n && <p style={{ fontSize:12.5, color:"var(--ink2)", margin: stats.length||sel ? "9px 0 0" : 0, lineHeight:1.45 }}>{sw.n}</p>}
+    </div>
+  );
+}
+
+/* common problems accordion on the crop detail page */
+function ProblemsCard({ crop }){
+  const ids = CROP_PROBLEMS[crop.id] || [];
+  const [open, setOpen] = useState(null);
+  if(!ids.length) return null;
+  const items = ids.map(id=>({ id, ...PROBLEMS[id] })).filter(p=>p.name);
+  return (
+    <div className="spec" style={{ marginTop:11 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:7 }}><Bug size={16} color="var(--clay)"/><span className="label">Common problems</span></div>
+      <div style={{ marginTop:6 }}>
+        {items.map(p=>{
+          const on = open===p.id;
+          return (
+            <div key={p.id} style={{ borderBottom:"1px solid var(--line)" }}>
+              <button onClick={()=>setOpen(on?null:p.id)}
+                style={{ width:"100%", display:"flex", alignItems:"center", gap:8, background:"transparent", border:0, padding:"11px 2px", cursor:"pointer", fontFamily:"inherit", textAlign:"left" }}>
+                <span style={{ flex:1, fontSize:14.5, fontWeight:600, color: on ? "var(--clay)" : "var(--ink)" }}>{p.name}</span>
+                <ChevronRight size={15} color="var(--muted)" style={{ transform: on ? "rotate(90deg)" : "none", transition:"transform .15s" }}/>
+              </button>
+              {on && (
+                <div style={{ padding:"0 2px 12px", animation:"fade .2s ease both" }}>
+                  <p style={{ margin:0, fontSize:13, color:"var(--ink2)", lineHeight:1.5 }}><b style={{ color:"var(--ink)" }}>Signs:</b> {p.signs}</p>
+                  <p style={{ margin:"7px 0 0", fontSize:13, color:"var(--ink2)", lineHeight:1.5 }}><b style={{ color:"var(--ink)" }}>What to do:</b> {p.fix}</p>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <p style={{ fontSize:11.5, color:"var(--muted)", margin:"10px 0 0", lineHeight:1.45 }}>
+        Most plants shrug off a little damage — act when it's spreading, not at the first nibble. For a confident ID, a photo shown at a local nursery beats any list.
+      </p>
+    </div>
+  );
+}
+
 /* frost outlook strip on My Plot, fed by the Open-Meteo forecast */
 function FrostCard({ wx, loc, crops, sownDates, goCrop }){
   if(!wx || wx.skip || !loc || wx.locId!==loc.id) return null;
@@ -1945,11 +2635,11 @@ function FrostCard({ wx, loc, crops, sownDates, goCrop }){
   return (
     <div style={{ marginBottom:14, background:tint("#5B8AA6",.13), border:`1px solid ${tint("#5B8AA6",.45)}`, borderRadius:14, padding:"12px 14px" }}>
       <div style={{ display:"flex", alignItems:"flex-start", gap:10 }}>
-        <Snowflake size={18} color="#3E6E8C" style={{ flexShrink:0, marginTop:1 }}/>
+        <Snowflake size={18} color="var(--t-frostI)" style={{ flexShrink:0, marginTop:1 }}/>
         <div style={{ flex:1, minWidth:0 }}>
-          <div className="fr" style={{ fontSize:15.5, fontWeight:600, color:"#2C5068" }}>{frost ? "Frost forecast" : "Frost risk"}</div>
+          <div className="fr" style={{ fontSize:15.5, fontWeight:600, color:"var(--t-frost)" }}>{frost ? "Frost forecast" : "Frost risk"}</div>
           <p style={{ margin:"3px 0 0", fontSize:13, color:"var(--ink2)", lineHeight:1.45 }}>
-            {fmtForecastDay(o.worst.date)} could dip to <b style={{ color:"#2C5068" }}>{t}°C</b>{o.count>1 ? ` — ${o.count} cold nights in the next week.` : "."}
+            {fmtForecastDay(o.worst.date)} could dip to <b style={{ color:"var(--t-frost)" }}>{t}°C</b>{o.count>1 ? ` — ${o.count} cold nights in the next week.` : "."}
             {named.length>0
               ? <> {out.length ? "Cover or bring in" : "If any are already outside, protect"}: {named.map((c,i)=>(
                   <b key={c.id} style={{ color:"var(--ink)", cursor:"pointer" }} onClick={()=>goCrop && goCrop(c.id,"plot")}>{c.name}{i<named.length-1?", ":""}</b>
@@ -1963,7 +2653,7 @@ function FrostCard({ wx, loc, crops, sownDates, goCrop }){
   );
 }
 
-function PlotScreen({ loc, saved, sownDates={}, setScreen, goCrop, toggleSave, wx }){
+function PlotScreen({ loc, saved, sownDates={}, setScreen, goCrop, toggleSave, wx, notes={}, harvests={} }){
   const [jobsHelp, setJobsHelp] = useState(false);
   const crops = CROPS.filter(c=>saved.includes(c.id));
   const unfit = crops.filter(c=>suitability(c,loc).level==="unfit");
@@ -2017,7 +2707,7 @@ function PlotScreen({ loc, saved, sownDates={}, setScreen, goCrop, toggleSave, w
             </div>
             {jobsHelp && (
               <p style={{ margin:"0 0 12px", fontSize:13, color:"var(--ink2)", lineHeight:1.5, background:"var(--card)", border:"1px solid var(--line)", borderLeft:"3px solid var(--moss)", borderRadius:12, padding:"10px 13px", animation:"fade .25s ease both" }}>
-                The tasks due in {loc.city} right now, worked out from each crop's calendar and today's date. A <b style={{ color:"#3C5E3A" }}>green</b> dot means sow or plant; <b style={{ color:"#8A6716" }}>amber</b> means harvest. Crops that aren't suited to your climate are left off. Tap any job to open the crop.
+                The tasks due in {loc.city} right now, worked out from each crop's calendar and today's date. A <b style={{ color:"var(--t-green)" }}>green</b> dot means sow or plant; <b style={{ color:"var(--t-ochre)" }}>amber</b> means harvest. Crops that aren't suited to your climate are left off. Tap any job to open the crop.
               </p>
             )}
             {jobs.length===0 ? (
@@ -2046,7 +2736,12 @@ function PlotScreen({ loc, saved, sownDates={}, setScreen, goCrop, toggleSave, w
               const now=Date.now();
               evs.filter(e=>e.ts<=now && e.ts>now-5*86400000).forEach(e=>rows.push({c,e,past:true}));
               const next=evs.find(e=>e.ts>now); if(next) rows.push({c,e:next,past:false});
-              cropICSEvents(c,sa).forEach(ev=>allUpcoming.push(ev));
+              const sd=SUCCESSION[c.id];
+              if(sd && !c.perennial){
+                const due=sa+sd*86400000; const st=status(c,loc);
+                if(now>=due && (st.kind==="now"||st.kind==="year")) rows.push({c, e:{label:"Next batch", ts:due}, succ:true});
+              }
+              cropICSEvents(c,sa,loc).forEach(ev=>allUpcoming.push(ev));
             });
             if(!rows.length) return null;
             rows.sort((a,b)=>a.e.ts-b.e.ts);
@@ -2054,13 +2749,13 @@ function PlotScreen({ loc, saved, sownDates={}, setScreen, goCrop, toggleSave, w
               <div>
                 <div className="label" style={{ margin:"22px 0 6px" }}>Stage reminders</div>
                 <div className="card" style={{ padding:"4px 16px 13px" }}>
-                  {rows.slice(0,8).map(({c,e,past})=>(
+                  {rows.slice(0,8).map(({c,e,past,succ})=>(
                     <div key={c.id+e.label} className="prow" onClick={()=>goCrop(c.id,"plot")} style={{ padding:"11px 2px" }}>
                       <Glyph id={c.id} size={32}/>
                       <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ fontSize:14.5, fontWeight:600 }}>{c.name} · <span style={{ color: past ? "#8A6716" : "var(--ink2)" }}>{e.label}</span></div>
-                        <div className="mono" style={{ fontSize:10.5, color: past ? "#8A6716" : "var(--muted)", letterSpacing:".03em" }}>
-                          {fmtDay(e.ts).toUpperCase()} · {relDay(e.ts).toUpperCase()}{past ? " — CHECK IT" : ""}
+                        <div style={{ fontSize:14.5, fontWeight:600 }}>{c.name} · <span style={{ color: (past||succ) ? "var(--t-ochre)" : "var(--ink2)" }}>{e.label}</span></div>
+                        <div className="mono" style={{ fontSize:10.5, color: (past||succ) ? "var(--t-ochre)" : "var(--muted)", letterSpacing:".03em" }}>
+                          {succ ? <>DUE {relDay(e.ts).toUpperCase()} — SOW A NEW BATCH</> : <>{fmtDay(e.ts).toUpperCase()} · {relDay(e.ts).toUpperCase()}{past ? " — CHECK IT" : ""}</>}
                         </div>
                       </div>
                       <ChevronRight size={15} color="var(--muted)"/>
@@ -2075,6 +2770,34 @@ function PlotScreen({ loc, saved, sownDates={}, setScreen, goCrop, toggleSave, w
                   <p style={{ fontSize:11.5, color:"var(--muted)", margin:"10px 0 0", lineHeight:1.5 }}>
                     Expected dates worked out from your sow date — weather will shift them by a few days. Plot can't send push alerts itself, so the calendar file lets your phone do the nudging.
                   </p>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* harvest so far */}
+          {(()=>{
+            const rows = Object.keys(harvests)
+              .map(id=>({ c: CROPS.find(x=>x.id===id), total: harvestTotals(harvests[id]) }))
+              .filter(r=>r.c && r.total)
+              .sort((a,b)=>a.c.name.localeCompare(b.c.name));
+            if(!rows.length) return null;
+            const shown = rows.slice(0,8);
+            return (
+              <div>
+                <div className="label" style={{ margin:"22px 0 6px", display:"flex", alignItems:"center", gap:6 }}><Wheat size={12}/> Harvest so far</div>
+                <div className="card" style={{ padding:"4px 16px" }}>
+                  {shown.map(({c,total})=>(
+                    <div key={c.id} className="prow" onClick={()=>goCrop(c.id,"plot")} style={{ padding:"11px 2px" }}>
+                      <Glyph id={c.id} size={32}/>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:14.5, fontWeight:600 }}>{c.name}</div>
+                      </div>
+                      <span className="mono" style={{ fontSize:11, fontWeight:700, color:"var(--t-ochre)", letterSpacing:".03em" }}>{total.toUpperCase()}</span>
+                      <ChevronRight size={15} color="var(--muted)"/>
+                    </div>
+                  ))}
+                  {rows.length>shown.length && <p className="mono" style={{ fontSize:10, color:"var(--muted)", padding:"8px 2px", margin:0 }}>+{rows.length-shown.length} MORE — OPEN A CROP FOR ITS LOG</p>}
                 </div>
               </div>
             );
@@ -2100,19 +2823,20 @@ function PlotScreen({ loc, saved, sownDates={}, setScreen, goCrop, toggleSave, w
                   <div style={{ flex:1, minWidth:0 }}>
                     <div className="fr" style={{ fontSize:17, fontWeight:600, lineHeight:1.1 }}>{c.name}</div>
                     <div style={{ fontSize:12.5, color:"var(--muted)" }}>{c.type} · {c.perennial ? `${c.years} yr to fruit` : `~${c.maturity} days`}</div>
+                    {notes[c.id] && <div style={{ fontSize:11.5, color:"var(--muted)", fontStyle:"italic", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>“{notes[c.id]}”</div>}
                   </div>
                   <div style={{ textAlign:"right" }}>
                     {fit.level==="unfit"
-                      ? <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:11, fontWeight:700, color:"#9A3D22" }}><AlertTriangle size={12}/> {fit.short}</span>
+                      ? <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:11, fontWeight:700, color:"var(--t-danger)" }}><AlertTriangle size={12}/> {fit.short}</span>
                       : fit.level==="marginal"
-                      ? <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:11, fontWeight:700, color:"#8A6716" }}><AlertTriangle size={12}/> {fit.short}</span>
+                      ? <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:11, fontWeight:700, color:"var(--t-ochre)" }}><AlertTriangle size={12}/> {fit.short}</span>
                       : sa
                       ? (<div>
                            <div style={{ fontSize:11.5, fontWeight:700, color:"var(--clay)" }}>{c.perennial ? (months>=1?`${months}mo in`:"planted") : (p.done ? "ready" : `day ${p.days}`)}</div>
                            {!c.perennial && !p.done && <div className="mono" style={{ fontSize:9, color:"var(--muted)", letterSpacing:".03em" }}>{p.stage.toUpperCase()}</div>}
                          </div>)
                       : (s.kind==="now"||s.kind==="year")
-                      ? <span style={{ fontSize:11.5, fontWeight:700, color:"#3C5E3A" }}>{c.perennial ? "plant now" : "sow now"}</span>
+                      ? <span style={{ fontSize:11.5, fontWeight:700, color:"var(--t-green)" }}>{c.perennial ? "plant now" : "sow now"}</span>
                       : <span className="mono" style={{ fontSize:11, color:"var(--muted)" }}>{MS[s.month]}</span>}
                   </div>
                   <button className="iconbtn" onClick={(e)=>{ e.stopPropagation(); toggleSave(c.id); }} aria-label="Remove">
@@ -2199,7 +2923,7 @@ function CalendarScreen({ loc, saved, sownDates={}, setScreen, goCrop }){
                 const fit = suitability(c,loc);
                 const sm = sowMonths(c,loc); const hm = harvestMonths(c,loc);
                 const dim = fit.level==="unfit";
-                const nameCol = dim ? "#9A3D22" : fit.level==="marginal" ? "#8A6716" : "var(--ink)";
+                const nameCol = dim ? "var(--t-danger)" : fit.level==="marginal" ? "var(--t-ochre)" : "var(--ink)";
                 const sa = sownDates[c.id];
                 const pp = (sa && !dim) ? (c.perennial ? perennialProgress(c,sa) : progressFor(c,sa)) : null;
                 const ppct = pp ? (c.perennial ? pp.pos : pp.pct) : 0;
@@ -2315,7 +3039,99 @@ function ConditionsCard({ loc }){
   );
 }
 
-function AppBar({ onAbout }){
+/* options menu: backup, restore, change city, clear data */
+function SettingsScreen({ onBack, counts, onExport, onRestore, onChangeCity, onAbout, theme, onTheme }){
+  const fileRef = React.useRef(null);
+  const [pending, setPending] = useState(null);
+  const [err, setErr] = useState(null);
+  const [done, setDone] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const pick = ()=>{ setErr(null); setDone(false); setPending(null); if(fileRef.current){ fileRef.current.value=""; fileRef.current.click(); } };
+  const onFile = (e)=>{
+    const f = e.target.files && e.target.files[0]; if(!f) return;
+    const rd = new FileReader();
+    rd.onload = ()=>{ try{ const v = validateBackup(JSON.parse(rd.result)); if(v.error) setErr(v.error); else setPending(v); }catch(ex){ setErr("That file isn't a Plot backup."); } };
+    rd.onerror = ()=> setErr("Couldn't read that file.");
+    rd.readAsText(f);
+  };
+  const Row = ({ icon:Icon, title, sub, onClick, danger })=>(
+    <div className="sugg-row" onClick={onClick} style={ danger ? { color:"var(--t-danger)" } : undefined }>
+      <Icon size={18} color={danger ? "var(--t-danger)" : "var(--clay)"}/>
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ fontWeight:600, fontSize:15, color: danger ? "var(--t-danger)" : "var(--ink)" }}>{title}</div>
+        {sub && <div style={{ fontSize:12.5, color:"var(--muted)" }}>{sub}</div>}
+      </div>
+      <ChevronRight size={17} color="var(--muted)"/>
+    </div>
+  );
+  const cs = counts||{};
+  const here = [cs.crops+" crops", cs.dates+" sow dates", cs.notes+" notes", cs.photos+" photos", cs.harvests+" picks"].join(" · ");
+  return (
+    <div className="screen" style={{ padding:"6px 24px 120px" }}>
+      <button onClick={onBack}
+        style={{ display:"inline-flex", alignItems:"center", gap:5, border:0, background:"transparent", cursor:"pointer", fontFamily:"inherit", color:"var(--ink2)", fontSize:14, fontWeight:600, padding:"4px 0", marginBottom:6 }}>
+        <ChevronLeft size={18}/> Back
+      </button>
+      <h1 className="fr" style={{ fontSize:30, fontWeight:600, letterSpacing:"-.02em", margin:"4px 0 8px" }}>Options</h1>
+
+      <div className="label" style={{ margin:"14px 0 6px" }}>Back up</div>
+      <div className="sugg" style={{ marginTop:0 }}>
+        <Row icon={Download} title="Download backup" sub="Your city, crops, dates, notes, photos and harvest log — one file." onClick={onExport}/>
+      </div>
+      <p className="mono" style={{ fontSize:9.5, color:"var(--muted)", letterSpacing:".04em", margin:"7px 0 0" }}>ON THIS DEVICE NOW: {here.toUpperCase()}</p>
+
+      <div className="label" style={{ margin:"20px 0 6px" }}>Restore</div>
+      <div className="sugg" style={{ marginTop:0 }}>
+        <Row icon={Upload} title="Restore from backup" sub="Open a Plot backup file from this or another device." onClick={pick}/>
+      </div>
+      {err && <p style={{ fontSize:13, color:"var(--t-danger)", margin:"8px 0 0", lineHeight:1.4 }}>{err}</p>}
+      {done && <p style={{ fontSize:13, color:"var(--t-green)", fontWeight:600, margin:"8px 0 0" }}>Restored — your plot is back.</p>}
+      {pending && (
+        <div className="rise" style={{ marginTop:10, background:"var(--card)", border:"1px solid var(--line)", borderLeft:"3px solid var(--clay)", borderRadius:12, padding:"12px 14px" }}>
+          <div className="fr" style={{ fontSize:15.5, fontWeight:600 }}>Backup{pending.exportedAt ? " from "+new Date(pending.exportedAt).toLocaleDateString(undefined,{ day:"numeric", month:"short", year:"numeric" }) : ""}</div>
+          <p style={{ margin:"5px 0 0", fontSize:13, color:"var(--ink2)", lineHeight:1.5 }}>
+            {pending.summary.crops} crops · {pending.summary.dates} sow dates · {pending.summary.notes} notes · {pending.summary.photos} photos · {pending.summary.harvests} picks{pending.summary.city ? " · city "+pending.summary.city : ""}.
+            <b style={{ color:"var(--t-danger)" }}> Restoring replaces everything Plot currently holds on this device.</b>
+          </p>
+          <div style={{ display:"flex", gap:8, marginTop:11 }}>
+            <button className="chip" onClick={()=>setPending(null)}>Cancel</button>
+            <button className="chip on" style={{ background:"var(--t-dangerBg)", borderColor:"var(--t-dangerBg)" }}
+              onClick={async ()=>{ const p=pending; setPending(null); await onRestore(p.data); setDone(true); }}>
+              Replace my data
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="label" style={{ margin:"20px 0 6px" }}>Appearance</div>
+      <div style={{ display:"flex", gap:4, background:"var(--paper2)", border:"1px solid var(--line2)", borderRadius:11, padding:4 }}>
+        {[["auto","Auto",Settings],["light","Light",Sun],["dark","Dark",Moon]].map(([k,lab,Icon])=>(
+          <button key={k} onClick={()=>onTheme && onTheme(k)} className="mono"
+            style={{ flex:1, border:"none", borderRadius:8, padding:"8px 0", fontSize:11, letterSpacing:".04em", cursor:"pointer",
+              background: theme===k ? "var(--ink)" : "transparent", color: theme===k ? "var(--paper)" : "var(--ink2)",
+              display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+            <Icon size={13}/> {lab.toUpperCase()}
+          </button>
+        ))}
+      </div>
+      <p className="mono" style={{ fontSize:9.5, color:"var(--muted)", letterSpacing:".04em", margin:"7px 0 0" }}>AUTO FOLLOWS YOUR PHONE'S LIGHT/DARK SETTING</p>
+
+      <div className="label" style={{ margin:"20px 0 6px" }}>App</div>
+      <div className="sugg" style={{ marginTop:0 }}>
+        <Row icon={MapPin} title="Change growing city" onClick={onChangeCity}/>
+        <Row icon={Info} title="About Plot" sub="How it works and what it can't know." onClick={onAbout}/>
+        <Row icon={Trash2} danger title={confirmClear ? "Tap again to erase everything" : "Clear all data"} sub={confirmClear ? "Photos, dates, notes, harvests — gone for good." : "Start fresh on this device."}
+          onClick={()=>{ if(confirmClear){ setConfirmClear(false); onRestore({ loc:null, saved:[], sownDates:{}, notes:{}, harvests:{}, photos:{} }, true); } else setConfirmClear(true); }}/>
+      </div>
+      <p style={{ fontSize:11.5, color:"var(--muted)", margin:"14px 0 0", lineHeight:1.5 }}>
+        Backups include your photos, so the file can be a few MB. Keep one somewhere safe — Plot's data lives only on this device.
+      </p>
+      <input ref={fileRef} type="file" accept="application/json,.json" onChange={onFile} style={{ display:"none" }} />
+    </div>
+  );
+}
+
+function AppBar({ onAbout, onSettings }){
   return (
     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 22px 4px" }}>
       <div style={{ display:"flex", alignItems:"center", gap:7 }}>
@@ -2327,7 +3143,10 @@ function AppBar({ onAbout }){
         </svg>
         <span className="fr" style={{ fontSize:15, fontWeight:600, letterSpacing:"-.01em", color:"var(--ink)" }}>Plot</span>
       </div>
-      <button className="iconbtn" onClick={onAbout} aria-label="About Plot" style={{ padding:4 }}><Info size={17} color="var(--muted)"/></button>
+      <div style={{ display:"flex", alignItems:"center", gap:2 }}>
+        <button className="iconbtn" onClick={onSettings} aria-label="Options" style={{ padding:4 }}><Settings size={17} color="var(--muted)"/></button>
+        <button className="iconbtn" onClick={onAbout} aria-label="About Plot" style={{ padding:4 }}><Info size={17} color="var(--muted)"/></button>
+      </div>
     </div>
   );
 }
@@ -2437,20 +3256,20 @@ function WorldMap({ selectedId, onPick }){
           <button key={name} className={"chip"+(near(b)?" on":"")} style={{ fontSize:12, padding:"5px 11px", whiteSpace:"nowrap" }} onClick={()=>apply(clampPos(b))}>{name}</button>
         );})}
       </div>
-      <div style={{ position:"relative", border:"1px solid var(--line2)", borderRadius:14, overflow:"hidden", background:"linear-gradient(180deg,#E7E0CC,#DfD6BE)" }}>
+      <div style={{ position:"relative", border:"1px solid var(--line2)", borderRadius:14, overflow:"hidden", background:"var(--map-bg)" }}>
         <svg ref={svgRef} viewBox={vbStr} width="100%" preserveAspectRatio="xMidYMid meet"
           onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
           onDoubleClick={(e)=>zoomAround(e.clientX, e.clientY, 1.9)}
           style={{ display:"block", height:222, touchAction:"none", cursor:"grab", userSelect:"none" }}>
-          <path d={WORLD_PATH} fill="#C7D1AE" stroke="#9DAB84" strokeWidth={sw} fillRule="evenodd" />
+          <path d={WORLD_PATH} fill="var(--map-land)" stroke="var(--map-stroke)" strokeWidth={sw} fillRule="evenodd" />
           {cities.map(c=>{
             const x=px(CITY_LL[c.id][0]), y=py(CITY_LL[c.id][1]);
             const on = c.id===focusId, sel = c.id===selectedId, hi = on||sel;
             return (
               <g key={c.id} onClick={(e)=>{ e.stopPropagation(); if(moved.current) return; setFocusId(c.id); }} style={{ cursor:"pointer" }}>
                 <circle cx={x} cy={y} r={hit} fill="transparent" />
-                {hi && <circle cx={x} cy={y} r={r*2.9} fill="none" stroke="#1E342A" strokeWidth={Math.max(0.18,r*0.26)} opacity="0.55" />}
-                <circle cx={x} cy={y} r={hi?r*1.8:r} fill={cc(c)} stroke={hi?"#1E342A":"#F2EAD7"} strokeWidth={Math.max(0.12,r*(hi?0.32:0.2))} />
+                {hi && <circle cx={x} cy={y} r={r*2.9} fill="none" stroke="var(--ink)" strokeWidth={Math.max(0.18,r*0.26)} opacity="0.55" />}
+                <circle cx={x} cy={y} r={hi?r*1.8:r} fill={cc(c)} stroke={hi?"var(--ink)":"#F2EAD7"} strokeWidth={Math.max(0.12,r*(hi?0.32:0.2))} />
               </g>
             );
           })}
@@ -2508,6 +3327,19 @@ export default function PlotApp(){
   const [saved, setSaved] = useState([]);
   const [sownDates, setSownDates] = useState({});
   const [photos, setPhotos] = useState({});
+  const [notes, setNotes] = useState({});
+  const [harvests, setHarvests] = useState({});
+  const [theme, setTheme] = useState("auto");
+  const [sysDark, setSysDark] = useState(false);
+  useEffect(()=>{
+    if(typeof window==="undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    setSysDark(mq.matches);
+    const fn = (e)=>setSysDark(e.matches);
+    if(mq.addEventListener) mq.addEventListener("change", fn); else if(mq.addListener) mq.addListener(fn);
+    return ()=>{ if(mq.removeEventListener) mq.removeEventListener("change", fn); else if(mq.removeListener) mq.removeListener(fn); };
+  }, []);
+  const isDark = theme==="dark" || (theme==="auto" && sysDark);
   const [loaded, setLoaded] = useState(false);
   const [back, setBack] = useState("list");
   const [locView, setLocView] = useState("map");
@@ -2530,6 +3362,13 @@ export default function PlotApp(){
             }
             if(!off && Object.keys(acc).length) setPhotos(acc);
           }catch(e){}
+          try{ const r=await window.storage.get("plot:notes"); if(!off && r && r.value) setNotes(JSON.parse(r.value)); }catch(e){}
+          try{ const r=await window.storage.get("plot:harvests"); if(!off && r && r.value) setHarvests(JSON.parse(r.value)); }catch(e){}
+          try{
+            const r=await window.storage.get("plot:loc");
+            if(!off && r && r.value){ const c=CITIES.find(x=>x.id===r.value); if(c){ setLoc(c); setScreen(s=> s==="location" ? "list" : s); } }
+          }catch(e){}
+          try{ const r=await window.storage.get("plot:theme"); if(!off && r && r.value && ["auto","light","dark"].includes(r.value)) setTheme(r.value); }catch(e){}
         }
       }catch(e){}
       if(!off) setLoaded(true);
@@ -2539,6 +3378,44 @@ export default function PlotApp(){
   // persist on change (after first load)
   useEffect(()=>{ if(!loaded) return; (async()=>{ try{ if(window.storage) await window.storage.set("plot:saved", JSON.stringify(saved)); }catch(e){} })(); }, [saved, loaded]);
   useEffect(()=>{ if(!loaded) return; (async()=>{ try{ if(window.storage) await window.storage.set("plot:sownDates", JSON.stringify(sownDates)); }catch(e){} })(); }, [sownDates, loaded]);
+  /* notes save is debounced so typing doesn't hammer storage */
+  useEffect(()=>{
+    if(!loaded) return;
+    const t=setTimeout(()=>{ (async()=>{ try{ if(window.storage) await window.storage.set("plot:notes", JSON.stringify(notes)); }catch(e){} })(); }, 600);
+    return ()=>clearTimeout(t);
+  }, [notes, loaded]);
+  const setNote = (id, text)=> setNotes(n=>{ const m={...n}; if(text==="") delete m[id]; else m[id]=text; return m; });
+  useEffect(()=>{ if(!loaded) return; (async()=>{ try{ if(window.storage) await window.storage.set("plot:harvests", JSON.stringify(harvests)); }catch(e){} })(); }, [harvests, loaded]);
+  useEffect(()=>{ if(!loaded || !loc) return; (async()=>{ try{ if(window.storage) await window.storage.set("plot:loc", loc.id); }catch(e){} })(); }, [loc, loaded]);
+  useEffect(()=>{ if(!loaded) return; (async()=>{ try{ if(window.storage) await window.storage.set("plot:theme", theme); }catch(e){} })(); }, [theme, loaded]);
+  /* restore a backup (or wipe, when clearing): replace state + sync storage */
+  const applyBackup = async (data, isClear)=>{
+    setSaved(data.saved||[]); setSownDates(data.sownDates||{}); setNotes(data.notes||{});
+    setHarvests(data.harvests||{}); setPhotos(data.photos||{});
+    const city = data.loc ? CITIES.find(c=>c.id===data.loc) : null;
+    setLoc(city||null); setWx(null);
+    try{
+      if(typeof window!=="undefined" && window.storage){
+        const ls = await window.storage.list("plot:photos:");
+        const keys = ((ls && ls.keys)||[]).filter(k=>String(k).indexOf("plot:photos:")===0);
+        for(const k of keys){ const id=k.slice(12); if(!(data.photos||{})[id]){ try{ await window.storage.delete(k); }catch(e){} } }
+        for(const id of Object.keys(data.photos||{})){ try{ await window.storage.set("plot:photos:"+id, JSON.stringify(data.photos[id])); }catch(e){} }
+        if(!city){ try{ await window.storage.delete("plot:loc"); }catch(e){} }
+      }
+    }catch(e){}
+    if(isClear || !city){ setScreen("location"); window.scrollTo(0,0); }
+  };
+  const addHarvest = (cropId, e)=> setHarvests(h=>{
+    const id = Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+    const list = [...(h[cropId]||[]), { id, ts:e.ts, qty:e.qty, unit:e.unit }];
+    return { ...h, [cropId]: list };
+  });
+  const deleteHarvest = (cropId, entryId)=> setHarvests(h=>{
+    const list = (h[cropId]||[]).filter(x=>x.id!==entryId);
+    const m = { ...h };
+    if(list.length) m[cropId]=list; else delete m[cropId];
+    return m;
+  });
 
   const isSaved = (id)=> saved.includes(id);
   /* frost outlook: 7-day min temps from Open-Meteo for the chosen city, cached ~6h */
@@ -2633,6 +3510,7 @@ export default function PlotApp(){
     : CROPS.filter(c=>{
         if(filter==="sownow"){ if(!suitability(c,loc).ok) return false; const s=status(c,loc); return s.kind==="now"||s.kind==="year"; }
         if(filter==="perennial") return !!c.perennial;
+        if(filter==="pots") return !!POT_FRIENDLY[c.id];
         if(filter==="all") return true;
         return c.type.toLowerCase()===filter;
       });
@@ -2645,13 +3523,13 @@ export default function PlotApp(){
   const goCrop = (id, from="list")=>{ setCropId(id); setBack(from); setScreen("detail"); window.scrollTo(0,0); };
 
   return (
-    <div className="plot">
+    <div className={"plot"+(isDark?" dark":"")}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className="backdrop" />
       <div className="grain" />
       <div className="stage">
         <div className="app">
-          {(screen==="list"||screen==="calendar"||screen==="plot") && <AppBar onAbout={()=>{ setBack(screen); setScreen("about"); window.scrollTo(0,0); }} />}
+          {(screen==="list"||screen==="calendar"||screen==="plot") && <AppBar onAbout={()=>{ setBack(screen); setScreen("about"); window.scrollTo(0,0); }} onSettings={()=>{ setBack(screen); setScreen("settings"); window.scrollTo(0,0); }} />}
 
           {/* ============ LOCATION SCREEN ============ */}
           {screen==="location" && (
@@ -2659,8 +3537,8 @@ export default function PlotApp(){
               <div>
                 {/* decorative sprig */}
                 <svg width="120" height="90" viewBox="0 0 120 90" style={{ position:"absolute", right:-6, top:30, opacity:.16 }}>
-                  <path d="M60 88 60 18" fill="none" stroke="#1E342A" strokeWidth="2"/>
-                  <path d="M60 34c-10-12-26-13-36-9 2 12 14 20 36 20M60 50c10-12 26-13 36-9-2 12-14 20-36 20" fill="none" stroke="#1E342A" strokeWidth="2"/>
+                  <path d="M60 88 60 18" fill="none" stroke="var(--ink)" strokeWidth="2"/>
+                  <path d="M60 34c-10-12-26-13-36-9 2 12 14 20 36 20M60 50c10-12 26-13 36-9-2 12-14 20-36 20" fill="none" stroke="var(--ink)" strokeWidth="2"/>
                 </svg>
 
                 <div className="rise" style={{ animationDelay:".05s", marginTop:34, display:"flex", alignItems:"center", gap:8 }}>
@@ -2778,7 +3656,7 @@ export default function PlotApp(){
                 {!cq && (
                   <>
                     <div className="scrollx" style={{ display:"flex", gap:8, overflowX:"auto", paddingBottom:4 }}>
-                      {[["all","All"],["sownow","Sow now"],["perennial","Perennials"],["fruit","Fruit"],["vegetable","Vegetable"],["herb","Herb"],["tree","Trees"]].map(([k,l])=>(
+                      {[["all","All"],["sownow","Sow now"],["pots","Pots"],["perennial","Perennials"],["fruit","Fruit"],["vegetable","Vegetable"],["herb","Herb"],["tree","Trees"]].map(([k,l])=>(
                         <button key={k} className={"chip"+(filter===k?" on":"")} onClick={()=>setFilter(k)}>{l}</button>
                       ))}
                     </div>
@@ -2815,11 +3693,11 @@ export default function PlotApp(){
                         </div>
                         <div className="fr" style={{ fontSize:18, fontWeight:600, lineHeight:1.1 }}>{c.name}</div>
                         <div style={{ marginTop:"auto", paddingTop:10, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                          <span className="mono" style={{ fontSize:11.5, fontWeight:700, color:"var(--ink2)", display:"inline-flex", alignItems:"center", gap:4 }}>{c.perennial ? `${c.years} yr` : `~${c.maturity}d`}{fit.level==="marginal" && <AlertTriangle size={11} color="#8A6716"/>}</span>
+                          <span className="mono" style={{ fontSize:11.5, fontWeight:700, color:"var(--ink2)", display:"inline-flex", alignItems:"center", gap:4 }}>{c.perennial ? `${c.years} yr` : `~${c.maturity}d`}{fit.level==="marginal" && <AlertTriangle size={11} color="var(--t-ochre)"/>}</span>
                           {fit.level==="unfit"
-                            ? <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:10.5, fontWeight:700, color:"#9A3D22" }}><AlertTriangle size={12}/> {fit.short}</span>
+                            ? <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:10.5, fontWeight:700, color:"var(--t-danger)" }}><AlertTriangle size={12}/> {fit.short}</span>
                             : (st.kind==="now"||st.kind==="year")
-                            ? <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:11, fontWeight:700, color:"#3C5E3A" }}><span style={{ width:7, height:7, borderRadius:"50%", background:"var(--moss)" }}/> {c.perennial ? "plant" : "sow"}</span>
+                            ? <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:11, fontWeight:700, color:"var(--t-green)" }}><span style={{ width:7, height:7, borderRadius:"50%", background:"var(--moss)" }}/> {c.perennial ? "plant" : "sow"}</span>
                             : <span style={{ fontSize:11, fontWeight:600, color:"var(--muted)" }}>{MS[st.month]} →</span>}
                         </div>
                       </div>
@@ -2854,7 +3732,13 @@ export default function PlotApp(){
                   {(()=>{ const fit=suitability(crop,loc);
                     if(fit.level==="unfit") return <span className="warnbadge"><AlertTriangle size={14}/> Not suited to {loc.city}</span>;
                     if(fit.level==="marginal") return <span className="warnbadge amber"><AlertTriangle size={14}/> Short season in {loc.city}</span>;
-                    return <StatusBadge st={status(crop,loc)} perennial={crop.perennial} />;
+                    return (
+                      <div style={{ display:"flex", alignItems:"flex-start", gap:8, flexWrap:"wrap" }}>
+                        <StatusBadge st={status(crop,loc)} perennial={crop.perennial} />
+                        <SuccessionBadge crop={crop} />
+                        <PotBadge crop={crop} />
+                      </div>
+                    );
                   })()}
                 </div>
               </div>
@@ -2862,7 +3746,7 @@ export default function PlotApp(){
               {suitability(crop,loc).level!=="fit" && (()=>{ const fit=suitability(crop,loc); const amber=fit.level==="marginal";
                 const bd = amber ? "rgba(190,142,44,.3)" : "rgba(189,87,54,.3)";
                 const bg = amber ? "rgba(190,142,44,.09)" : "rgba(189,87,54,.08)";
-                const ic = amber ? "#8A6716" : "#9A3D22";
+                const ic = amber ? "var(--t-ochre)" : "var(--t-danger)";
                 return (
                 <div style={{ padding:"0 22px", marginTop:-2 }}>
                   <div className="card" style={{ padding:14, background:bg, borderColor:bd, display:"flex", gap:10 }}>
@@ -2886,7 +3770,7 @@ export default function PlotApp(){
 
                     <div className="label" style={{ margin:"22px 0 0" }}>The long game</div>
                     <PerennialTimeline crop={crop} sownAt={sownDates[crop.id]} />
-                    <SowControl crop={crop} sownAt={sownDates[crop.id]} onSet={(ts)=>setSown(crop.id, ts)} />
+                    <SowControl crop={crop} sownAt={sownDates[crop.id]} onSet={(ts)=>setSown(crop.id, ts)} loc={loc} />
                   </>
                 ) : (
                   <>
@@ -2902,12 +3786,21 @@ export default function PlotApp(){
 
                     <div className="label" style={{ margin:"22px 0 0" }}>From seed to plate</div>
                     <Timeline crop={crop} sownAt={sownDates[crop.id]} />
-                    <SowControl crop={crop} sownAt={sownDates[crop.id]} onSet={(ts)=>setSown(crop.id, ts)} />
+                    <SowControl crop={crop} sownAt={sownDates[crop.id]} onSet={(ts)=>setSown(crop.id, ts)} loc={loc} />
                   </>
                 )}
 
+                <SowingCard crop={crop} />
+
                 <PhotoJournal crop={crop} sownAt={sownDates[crop.id]} shots={photos[crop.id]||{}}
                   onAdd={(st,img)=>setPhoto(crop.id,st,img)} onDelete={(st)=>setPhoto(crop.id,st,null)} />
+
+                <PickRow crop={crop} />
+
+                <HarvestCard crop={crop} sownAt={sownDates[crop.id]} entries={harvests[crop.id]||[]}
+                  onAdd={(e)=>addHarvest(crop.id, e)} onDelete={(eid)=>deleteHarvest(crop.id, eid)} />
+
+                <NotesCard crop={crop} value={notes[crop.id]} onChange={(t)=>setNote(crop.id, t)} />
 
                 {/* spec grid */}
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:11, marginTop:10 }}>
@@ -2916,6 +3809,10 @@ export default function PlotApp(){
                   <SoilSpec crop={crop} />
                   <TempSpec crop={crop} />
                 </div>
+
+                <CompanionsCard crop={crop} onOpen={(id)=>goCrop(id, back)} />
+
+                <ProblemsCard crop={crop} />
 
                 {/* planting calendar for this location */}
                 <div className="label" style={{ margin:"24px 0 4px" }}>Planting calendar · {loc.city}</div>
@@ -2975,7 +3872,7 @@ export default function PlotApp(){
 
           {/* ============ MY PLOT SCREEN ============ */}
           {screen==="plot" && loc && (
-            <PlotScreen loc={loc} saved={saved} sownDates={sownDates} setScreen={setScreen} goCrop={goCrop} toggleSave={toggleSave} wx={wx} />
+            <PlotScreen loc={loc} saved={saved} sownDates={sownDates} setScreen={setScreen} goCrop={goCrop} toggleSave={toggleSave} wx={wx} notes={notes} harvests={harvests} />
           )}
 
           {/* ============ YEAR CALENDAR SCREEN ============ */}
@@ -3024,10 +3921,23 @@ export default function PlotApp(){
               </p>
             </div>
           )}
+          {screen==="settings" && (
+            <SettingsScreen
+              onBack={()=>{ setScreen(back); window.scrollTo(0,0); }}
+              counts={{ crops:saved.length, dates:Object.keys(sownDates).length, notes:Object.keys(notes).length,
+                photos:Object.values(photos).reduce((n,o)=>n+Object.keys(o||{}).length,0),
+                harvests:Object.values(harvests).reduce((n,a)=>n+(Array.isArray(a)?a.length:0),0) }}
+              onExport={()=>downloadText("plot-backup-"+new Date().toISOString().slice(0,10)+".json", JSON.stringify(makeBackup({ loc, saved, sownDates, notes, harvests, photos })))}
+              onRestore={applyBackup}
+              onChangeCity={()=>{ setScreen("location"); window.scrollTo(0,0); }}
+              onAbout={()=>{ setScreen("about"); window.scrollTo(0,0); }}
+              theme={theme} onTheme={setTheme}
+            />
+          )}
         </div>
       </div>
 
-      {(screen==="list" || screen==="plot" || screen==="calendar" || screen==="about") && (
+      {(screen==="list" || screen==="plot" || screen==="calendar" || screen==="about" || screen==="settings") && (
         <div className="navbar">
           <button className={"navtab"+(screen==="list"?" on":"")} onClick={()=>{ setScreen("list"); window.scrollTo(0,0); }}>
             <Compass size={17}/> <span>Discover</span>
